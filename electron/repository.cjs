@@ -19,9 +19,37 @@ const getRepositoryBackend = (launchPath) => {
   return { discovered, kind: /** @type {const} */ ('git') };
 };
 
+/** @param {string} launchPath @param {ReviewSource} [source] */
+const readGitBackedPullRequestState = async (launchPath, source, options) => {
+  const gitRoot = await jjState.readJjGitRoot(launchPath);
+  if (!gitRoot) {
+    throw new Error('Remote reviews require a Git-backed repository.');
+  }
+  const [state, identity] = await Promise.all([
+    gitState.readRepositoryState(gitRoot, source, options),
+    jjState.readJjCheckoutIdentity(launchPath).catch(() => null),
+  ]);
+  return {
+    ...state,
+    launchPath,
+    root: (await jjState.readJjWorkspaceRoot(launchPath)) || state.root,
+    repository: identity
+      ? {
+          bookmarks: identity.bookmarks,
+          changeId: identity.changeId,
+          commitId: identity.commitId,
+          vcs: 'jj',
+        }
+      : state.repository,
+  };
+};
+
 /** @param {string} launchPath @param {ReviewSource} [source] @param {{showWhitespace?: boolean}} [options] */
 const readRepositoryState = async (launchPath, source, options) => {
   const { kind } = getRepositoryBackend(launchPath);
+  if (kind === 'jj' && source?.type === 'pull-request') {
+    return readGitBackedPullRequestState(launchPath, source, options);
+  }
   return kind === 'jj'
     ? jjState.readJjRepositoryState(launchPath, source, options)
     : gitState.readRepositoryState(launchPath, source, options);
@@ -35,8 +63,24 @@ const readWalkthroughRepositoryState = async (launchPath, source, options) => {
     : gitState.readWalkthroughRepositoryState(launchPath, source, options);
 };
 
+/** @param {string} launchPath @param {ReviewSource} [source] */
+const resolveGitBridgePath = async (launchPath, source) => {
+  if (source?.type !== 'pull-request' || getRepositoryBackend(launchPath).kind !== 'jj') {
+    return launchPath;
+  }
+  const gitRoot = await jjState.readJjGitRoot(launchPath);
+  if (!gitRoot) {
+    throw new Error('Remote reviews require a Git-backed repository.');
+  }
+  return gitRoot;
+};
+
 /** @param {string} launchPath @param {number} [limit] @param {ReviewSource} [source] */
 const listRepositoryHistory = async (launchPath, limit, source) => {
+  const gitPath = await resolveGitBridgePath(launchPath, source);
+  if (gitPath !== launchPath) {
+    return gitState.listRepositoryHistory(gitPath, limit, source);
+  }
   const { kind } = getRepositoryBackend(launchPath);
   return kind === 'jj'
     ? jjState.listJjRepositoryHistory(launchPath, limit, source)
@@ -45,6 +89,10 @@ const listRepositoryHistory = async (launchPath, limit, source) => {
 
 /** @param {string} launchPath @param {import('../core/types.ts').DiffSectionContentRequest} request */
 const readDiffSectionContent = async (launchPath, request) => {
+  const gitPath = await resolveGitBridgePath(launchPath, request.source);
+  if (gitPath !== launchPath) {
+    return gitState.readDiffSectionContent(gitPath, request);
+  }
   const { kind } = getRepositoryBackend(launchPath);
   return kind === 'jj'
     ? jjState.readJjDiffSectionContent(launchPath, request)
@@ -53,6 +101,10 @@ const readDiffSectionContent = async (launchPath, request) => {
 
 /** @param {string} launchPath @param {import('../core/types.ts').DiffImageContentRequest} request */
 const readDiffImageContent = async (launchPath, request) => {
+  const gitPath = await resolveGitBridgePath(launchPath, request.source);
+  if (gitPath !== launchPath) {
+    return gitState.readDiffImageContent(gitPath, request);
+  }
   const { kind } = getRepositoryBackend(launchPath);
   return kind === 'jj'
     ? jjState.readJjDiffImageContent(launchPath, request)

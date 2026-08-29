@@ -2,6 +2,8 @@
 
 const {
   assertSupportedJjVersion,
+  readJjCheckoutIdentity,
+  readJjGitRoot,
   readJjWorkspaceRoot,
   snapshotWorkingCopy,
 } = require('./jj-state/common.cjs');
@@ -46,7 +48,7 @@ const readJjRepositoryState = async (
 ) => {
   await prepareJjRepository(launchPath);
   if (source.type === 'pull-request') {
-    throw new Error('Remote reviews require a Git-backed repository.');
+    throw new Error('Pull requests are opened through the Git store of a colocated repository.');
   }
   if (source.type === 'commit') {
     return readJjCommitState(launchPath, source.ref);
@@ -162,8 +164,10 @@ const readJjDiffImageContent = async (launchPath, request) => {
 module.exports = {
   createJjWalkthroughCommit,
   listJjRepositoryHistory,
+  readJjCheckoutIdentity,
   readJjDiffImageContent,
   readJjDiffSectionContent,
+  readJjGitRoot,
   readJjIdentity,
   readJjRepositoryState,
   readJjWalkthroughRepositoryState,
