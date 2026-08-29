@@ -12,7 +12,7 @@ const { discoverRepository } = require('../repository-discovery.cjs') as {
   };
 };
 const { readRepositoryState } = require('../repository.cjs') as {
-  readRepositoryState: (launchPath: string) => Promise<unknown>;
+  readRepositoryState: (launchPath: string) => Promise<{ repository: { vcs: string } }>;
 };
 
 test('discovers a Git workspace from a nested path', async () => {
@@ -47,11 +47,9 @@ test('reports no repository when neither Git nor Jujutsu metadata exists', async
   });
 });
 
-test('repository facade rejects Jujutsu workspaces until a backend exists', async () => {
+test('a Jujutsu workspace without a working jj executable fails clearly', async () => {
   await using directory = await createTemporaryDirectory('codiff-repository-jj-');
   await mkdir(join(directory.path, '.jj'));
 
-  await expect(readRepositoryState(directory.path)).rejects.toThrow(
-    /Jujutsu support is not available yet/i,
-  );
+  await expect(readRepositoryState(directory.path)).rejects.toThrow(/jj/i);
 });

@@ -17,11 +17,13 @@ const {
 } = require('electron');
 const squirrelStartup = require('electron-squirrel-startup');
 const {
+  createWalkthroughCommit,
   listRepositoryHistory,
   readDiffImageContent,
   readDiffSectionContent,
   readRepositoryIdentity,
   readRepositoryState,
+  readRepositoryWatcherSnapshot,
   readWalkthroughRepositoryState,
   submitPullRequestComment,
   submitPullRequestReview,
@@ -31,7 +33,6 @@ const { attachExternalLinkHandling } = require('./external-links.cjs');
 const { normalizeOpenAIModel } = require('./codex.cjs');
 const { normalizeClaudeModel } = require('./claude.cjs');
 const { normalizeOpenCodeModel, renderOpenCodeCommand } = require('./opencode.cjs');
-const { createWalkthroughCommit } = require('./walkthrough-commit.cjs');
 const { readKeyboardLayout, watchKeyboardLayout } = require('./keyboard-layout.cjs');
 const { diagnoseWalkthroughMismatch } = require('./walkthrough-diagnosis.cjs');
 const { readCommitMessageReply } = require('./walkthrough-commit-message.cjs');
@@ -108,10 +109,7 @@ const {
   watchMarkdownDocument,
   writeMarkdownDocument,
 } = require('./markdown-document.cjs');
-const {
-  createRepositoryWatcherCoordinator,
-  readRepositoryWatcherSnapshot,
-} = require('./repository-watcher.cjs');
+const { createRepositoryWatcherCoordinator } = require('./repository-watcher.cjs');
 const { getPlanReviewPath, readPlanReview, writePlanReview } = require('./plan-review.cjs');
 const { createSharedPlanSnapshot } = require('./shared-plan.cjs');
 const { createWalkthroughProgressReporter } = require('./walkthrough-progress.cjs');

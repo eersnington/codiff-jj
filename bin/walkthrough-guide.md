@@ -75,16 +75,19 @@ the file's repository-relative path, `<scope>` identifies the diff the hunk came
 and `h<ordinal>` is the hunk's 1-based position within that file's patch (`h1`, `h2`, …).
 The `<scope>` segment depends on which diff you anchored against:
 
-- `staged` — the staged diff (`git diff --staged`).
-- `unstaged` — the working-tree diff (`git diff`).
+- `staged` — the staged Git diff (`git diff --staged`).
+- `unstaged` — the unstaged Git working-tree diff (`git diff`).
+- `working-copy` — the Jujutsu working-copy commit (`jj diff -r @`).
 - `pull-request:<number>` — a pull request.
-- `<commit SHA>` — every commit-like target: a single commit, a branch comparison, or a
+- `<commit SHA>` — every commit-like Git target: a single commit, a branch comparison, or a
   ref range. This is always the **full 40-character SHA of the diff's new (head) side**,
   resolved with `git rev-parse` — never a ref name or a `branch:`/`range:` prefix:
   - single commit (`codiff <ref>`): the resolved commit SHA.
   - branch comparison (`codiff <branch>` — current branch vs `<branch>`): the resolved
     **`HEAD`** SHA, _not_ `<branch>`.
   - ref range (`codiff base..head` or `base...head`): the resolved SHA of `head`.
+- `<change id or commit id>` — Jujutsu revision and bookmark comparisons. Use the change id
+  when it is unambiguous, otherwise the commit id.
 
 ## Schema
 

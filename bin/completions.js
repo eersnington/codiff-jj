@@ -2,9 +2,10 @@ import { flagDefinitions } from './arguments.js';
 
 export const completionShells = ['bash', 'fish', 'zsh'];
 
-// Git refs are the most common first argument, so every shell offers them.
+// Named refs are the most common first argument. Prefer jj bookmarks in a
+// Jujutsu workspace, including colocated ones.
 const refCommand =
-  "git for-each-ref --format='%(refname:short)' refs/heads refs/remotes refs/tags 2>/dev/null";
+  "{ [ -d .jj ] && jj --ignore-working-copy --no-pager --color never bookmark list -T 'name ++ \"\\n\"' 2>/dev/null; } || git for-each-ref --format='%(refname:short)' refs/heads refs/remotes refs/tags 2>/dev/null";
 
 // What a flag's value should complete to is derived from the placeholder shown
 // in `codiff --help`, so a new flag is covered without touching this file:
