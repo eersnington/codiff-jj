@@ -183,6 +183,10 @@ export default function App() {
   const [loadError, setLoadError] = useState<RepositoryLoadError | null>(null);
   const [gitIdentity, setGitIdentity] = useState<GitIdentity | null>(null);
   const [historyEntries, setHistoryEntries] = useState<ReadonlyArray<HistoryEntry>>([]);
+  const [historyStackRange, setHistoryStackRange] = useState<{
+    base: string;
+    head: string;
+  } | null>(null);
   const [historyHasMore, setHistoryHasMore] = useState(true);
   const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -763,6 +767,7 @@ export default function App() {
       setHistoryHasMore(history.entries.length >= HISTORY_PAGE_SIZE);
       setHistoryLimit(HISTORY_PAGE_SIZE);
       setHistorySource(nextHistorySource ?? null);
+      setHistoryStackRange(history.stackRange ?? null);
       stateGenerationRef.current += 1;
       stateRef.current = orderedState;
       setState(orderedState);
@@ -1272,6 +1277,7 @@ export default function App() {
         setHistoryEntries(history.entries);
         setHistoryLimit(nextLimit);
         setHistoryHasMore(history.entries.length >= nextLimit);
+        setHistoryStackRange(history.stackRange ?? null);
       })
       .catch(() => {
         if (historyRequestRef.current === request) {
@@ -1347,6 +1353,7 @@ export default function App() {
         setHistoryEntries(history.entries);
         setHistoryHasMore(history.entries.length >= historyLimit);
         setHistorySource(getHistorySource(orderedState.source) ?? historySourceRef.current);
+        setHistoryStackRange(history.stackRange ?? null);
         setSelectedPath((current) =>
           current != null && orderedState.files.some((file) => file.path === current)
             ? current
@@ -1938,6 +1945,7 @@ export default function App() {
           historyEntries={historyEntries}
           historyHasMore={historyHasMore}
           historyLoading={historyLoading}
+          historyStackRange={historyStackRange}
           keymap={codiffConfig.keymap}
           mode={sidebarMode}
           narrativeNavigation={narrativeNavigation}

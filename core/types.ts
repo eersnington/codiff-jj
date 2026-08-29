@@ -195,7 +195,7 @@ export type HistoryEntry = {
   gravatarUrl?: string;
   parents: ReadonlyArray<string>;
   ref: string;
-  scope?: 'base' | 'pull-request' | 'workspace';
+  scope?: 'base' | 'pull-request' | 'stack' | 'workspace';
   subject: string;
   workspace?: string;
 };
@@ -247,6 +247,7 @@ export type CommitMetadata = {
 export type RepositoryHistory = {
   entries: ReadonlyArray<HistoryEntry>;
   root: string;
+  stackRange?: { base: string; head: string };
 };
 
 export type RepositoryState = {

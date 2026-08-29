@@ -32,6 +32,7 @@ export function Sidebar({
   historyEntries,
   historyHasMore,
   historyLoading,
+  historyStackRange,
   keymap,
   mode,
   narrativeNavigation,
@@ -61,6 +62,7 @@ export function Sidebar({
   historyEntries: ReadonlyArray<HistoryEntry>;
   historyHasMore: boolean;
   historyLoading: boolean;
+  historyStackRange: { base: string; head: string } | null;
   keymap: CodiffKeymap;
   mode: SidebarMode;
   narrativeNavigation: NarrativeNavigation;
@@ -138,6 +140,7 @@ export function Sidebar({
           onSelectSource={onSelectSource}
           pullRequestSource={pullRequestSource}
           searchQuery={searchQuery}
+          stackRange={historyStackRange}
         />
       ) : mode === 'walkthrough' && narrativeWalkthrough ? (
         <NarrativeSidebar
@@ -242,6 +245,7 @@ function HistorySidebar({
   onSelectSource,
   pullRequestSource,
   searchQuery,
+  stackRange,
 }: {
   branchSource: Extract<ReviewSource, { type: 'branch-diff' }> | null;
   currentSource: ReviewSource;
@@ -252,6 +256,7 @@ function HistorySidebar({
   onSelectSource: (source: ReviewSource) => void;
   pullRequestSource: PullRequestSource | null;
   searchQuery: string;
+  stackRange: { base: string; head: string } | null;
 }) {
   const currentSourceKey = getSourceKey(currentSource);
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -377,10 +382,21 @@ function HistorySidebar({
       ].filter((row): row is NonNullable<typeof row> => row != null);
     }
 
+    const stackRows = commitRows.filter((row) => row.scope === 'stack').filter(matchesQuery);
     const workspaceRows = commitRows
       .filter((row) => row.scope === 'workspace')
       .filter(matchesQuery);
-    const localRows = commitRows.filter((row) => row.scope !== 'workspace').filter(matchesQuery);
+    const localRows = commitRows
+      .filter((row) => row.scope !== 'stack' && row.scope !== 'workspace')
+      .filter(matchesQuery);
+    const stackSource = stackRange
+      ? ({
+          base: stackRange.base,
+          head: stackRange.head,
+          symmetric: false,
+          type: 'range',
+        } satisfies ReviewSource)
+      : null;
     return [
       !normalizedQuery
         ? {
@@ -394,6 +410,22 @@ function HistorySidebar({
             subject: 'Uncommitted changes',
           }
         : null,
+      !normalizedQuery && stackSource
+        ? {
+            author: null,
+            committedAt: null,
+            gravatarUrl: undefined,
+            key: getSourceKey(stackSource),
+            kind: 'entry' as const,
+            ref: 'stack',
+            source: stackSource,
+            subject: 'Stack vs trunk',
+          }
+        : null,
+      stackRows.length > 0
+        ? { key: 'history-section:stack', kind: 'section' as const, label: 'Stack' }
+        : null,
+      ...stackRows,
       workspaceRows.length > 0
         ? { key: 'history-section:workspaces', kind: 'section' as const, label: 'Workspaces' }
         : null,
@@ -403,7 +435,7 @@ function HistorySidebar({
         : null,
       ...localRows,
     ].filter((row): row is NonNullable<typeof row> => row != null);
-  }, [branchSource, entries, normalizedQuery, pullRequestSource]);
+  }, [branchSource, entries, normalizedQuery, pullRequestSource, stackRange]);
   const maybeLoadMore = useCallback(() => {
     const element = listRef.current;
     if (!element || loading || !hasMore || normalizedQuery) {
@@ -441,7 +473,8 @@ function HistorySidebar({
                 ? getShortRef(row.source.ref)
                 : row.source.type === 'pull-request' ||
                     row.source.type === 'branch-diff' ||
-                    row.source.type === 'branch-working-tree'
+                    row.source.type === 'branch-working-tree' ||
+                    row.source.type === 'range'
                   ? row.ref
                   : 'local'}
             </span>

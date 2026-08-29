@@ -27,6 +27,7 @@ const {
   ) => Promise<{
     entries: Array<{ ref: string; scope?: string; subject: string; workspace?: string }>;
     root: string;
+    stackRange?: { base: string; head: string };
   }>;
   readDiffSectionContent: (
     launchPath: string,
@@ -145,6 +146,34 @@ test('lists other workspace working copies after snapshotting them', async () =>
   } finally {
     await rm(otherPath, { force: true, recursive: true });
   }
+});
+
+test('lists the trunk stack and opens it as a range', async () => {
+  await using repo = await createJjTestRepository();
+  await writeFile(join(repo.path, 'base.txt'), 'base\n');
+  await jj(repo.path, ['commit', '-m', 'base']);
+  await jj(repo.path, ['bookmark', 'create', 'main', '-r', '@-']);
+  await jj(repo.path, ['config', 'set', '--repo', 'revset-aliases."trunk()"', 'main']);
+  await writeFile(join(repo.path, 'one.txt'), 'one\n');
+  await jj(repo.path, ['commit', '-m', 'one']);
+  await writeFile(join(repo.path, 'two.txt'), 'two\n');
+  await jj(repo.path, ['commit', '-m', 'two']);
+
+  const history = await listRepositoryHistory(repo.path, 20);
+  const stackSubjects = history.entries
+    .filter((entry) => entry.scope === 'stack')
+    .map((entry) => entry.subject);
+
+  expect(stackSubjects).toEqual(['two', 'one']);
+  expect(history.stackRange).toMatchObject({ base: expect.any(String), head: expect.any(String) });
+
+  const state = await readRepositoryState(repo.path, {
+    base: history.stackRange?.base ?? '',
+    head: history.stackRange?.head ?? '',
+    symmetric: false,
+    type: 'range',
+  });
+  expect(state.files.map((file) => file.path).sort()).toEqual(['one.txt', 'two.txt']);
 });
 
 test('opens a divergent change by change id', async () => {

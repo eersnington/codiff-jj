@@ -371,6 +371,7 @@ const parseJjHistory = (raw) => {
 };
 
 const DEFAULT_JJ_LOG_REVSET = 'present(@) | ancestors(immutable_heads().., 2) | trunk()';
+const JJ_STACK_REVSET = 'trunk()..(@::) & ~::(immutable_heads() | root()) & ~empty()';
 
 /** @param {string} repoRoot */
 const readJjWorkingCopyHistoryRevset = async (repoRoot) => {
@@ -383,20 +384,54 @@ const readJjWorkingCopyHistoryRevset = async (repoRoot) => {
   } catch {
     // Keep the default `jj log` window.
   }
-  return `((${logRevset}) | ancestors(@-) | working_copies()) ~ @`;
+  return `((${logRevset}) | ancestors(@-) | working_copies() | (${JJ_STACK_REVSET})) ~ @`;
+};
+
+/** @param {string} repoRoot @param {string} revset */
+const listJjCommitIds = async (repoRoot, revset) => {
+  try {
+    const raw = await jj(repoRoot, ['log', '-r', revset, '--no-graph', '-T', 'commit_id ++ "\\n"']);
+    return new Set(
+      raw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
+  } catch {
+    return new Set();
+  }
+};
+
+/** @param {string} repoRoot */
+const readJjStackRange = async (repoRoot) => {
+  try {
+    const [base, head] = await Promise.all([
+      jj(repoRoot, ['log', '-r', 'trunk()', '-n', '1', '--no-graph', '-T', 'commit_id']),
+      jj(repoRoot, ['log', '-r', '@-', '-n', '1', '--no-graph', '-T', 'commit_id']),
+    ]);
+    const baseId = base.trim();
+    const headId = head.trim();
+    return baseId && headId && baseId !== headId ? { base: baseId, head: headId } : null;
+  } catch {
+    return null;
+  }
 };
 
 /**
  * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} entries
+ * @param {Set<string>} stackIds
  * @param {Map<string, string>} workspaceByCommit
  */
-const annotateJjHistory = (entries, workspaceByCommit) =>
+const annotateJjHistory = (entries, stackIds, workspaceByCommit) =>
   entries.map((entry) => {
     const { commitId, ...historyEntry } = entry;
     const workspace = commitId ? workspaceByCommit.get(commitId) : undefined;
     return {
       ...historyEntry,
       ...(workspace ? { scope: /** @type {const} */ ('workspace'), workspace } : {}),
+      ...(!workspace && commitId && stackIds.has(commitId)
+        ? { scope: /** @type {const} */ ('stack') }
+        : {}),
     };
   });
 
@@ -415,24 +450,30 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
       : `${source.ref}..@`
     : await readJjWorkingCopyHistoryRevset(repoRoot);
   try {
-    const raw = await jj(repoRoot, [
-      'log',
-      '-r',
-      revset,
-      '--no-graph',
-      '--limit',
-      String(limit),
-      '-T',
-      `${HISTORY_TEMPLATE} ++ "\\n"`,
+    const [raw, stackIds, stackRange] = await Promise.all([
+      jj(repoRoot, [
+        'log',
+        '-r',
+        revset,
+        '--no-graph',
+        '--limit',
+        String(limit),
+        '-T',
+        `${HISTORY_TEMPLATE} ++ "\\n"`,
+      ]),
+      comparisonSource ? Promise.resolve(new Set()) : listJjCommitIds(repoRoot, JJ_STACK_REVSET),
+      comparisonSource ? Promise.resolve(null) : readJjStackRange(repoRoot),
     ]);
     const workspaceByCommit = new Map(
       workspaces
         .filter((workspace) => !workspace.current)
         .map((workspace) => [workspace.commitId, workspace.name]),
     );
+    const entries = annotateJjHistory(parseJjHistory(raw), stackIds, workspaceByCommit);
     return {
-      entries: annotateJjHistory(parseJjHistory(raw), workspaceByCommit),
+      entries,
       root: repoRoot,
+      ...(stackIds.size > 0 && stackRange ? { stackRange } : {}),
     };
   } catch {
     return { entries: [], root: repoRoot };
