@@ -28,6 +28,7 @@ import type {
   WalkthroughHunk,
   WalkthroughHunkGroup,
 } from '../types.ts';
+import { gitRepositoryInfo } from './helpers/fixtures.ts';
 
 const hunk = ({
   added,
@@ -175,14 +176,14 @@ const walkthrough = (): NarrativeWalkthrough => ({
   focus: 'Focus.',
   generatedAt: '2026-06-05T00:00:00.000Z',
   kind: 'narrative',
-  repo: { branch: 'main', root: '/repo' },
+  repo: { info: gitRepositoryInfo(), root: '/repo' },
   source: { type: 'working-tree' },
   support: [
     { ...group({ hunks: [lockHunk], id: 'lock' }), note: 'Regenerated.', reason: 'Lockfile' },
     { ...group({ hunks: [mirrorHunk], id: 'mirror' }), note: 'Mirror.', reason: 'Mechanical' },
   ],
   title: 'Title',
-  version: 4,
+  version: 5,
 });
 
 test('formatWalkthroughFileList shows filenames up to five unique files', () => {

@@ -102,9 +102,9 @@ test('reports only the long-running walkthrough generation phases', async () => 
   let runOptions: any;
   let runSchema: any;
   const state = {
-    branch: 'main',
     files,
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   };
@@ -258,7 +258,6 @@ test('keeps the renderer JSON schema in sync with the live narrative schema', ()
 
 test('scales walkthrough timeouts passed to the agent', async () => {
   const createState = (count: number) => ({
-    branch: 'main',
     files: Array.from({ length: count }, (_, index) => ({
       path: `file-${index}.ts`,
       sections: [
@@ -271,6 +270,7 @@ test('scales walkthrough timeouts passed to the agent', async () => {
       status: 'modified',
     })),
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -319,13 +319,13 @@ test('scales walkthrough timeouts passed to the agent', async () => {
 
 test('prompts generated walkthroughs to use deterministic hunk groups', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: Array.from({ length: 28 }, (_, index) => ({
       path: `file-${index}.ts`,
       sections: [],
       status: 'modified',
     })),
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -349,7 +349,6 @@ test('prompts generated walkthroughs to use deterministic hunk groups', () => {
 
 test('prompts small walkthroughs to group similar hunks into compact chapters', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: [
       {
         path: 'src/App.tsx',
@@ -375,6 +374,7 @@ test('prompts small walkthroughs to group similar hunks into compact chapters', 
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -388,7 +388,6 @@ test('prompts small walkthroughs to group similar hunks into compact chapters', 
 
 test('uses GPT-5.5 for large walkthroughs only when Codex is on the default model', () => {
   const createState = (hunkCount: number) => ({
-    branch: 'main',
     files: [
       {
         path: 'large.ts',
@@ -406,6 +405,7 @@ test('uses GPT-5.5 for large walkthroughs only when Codex is on the default mode
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -437,9 +437,9 @@ test('uses GPT-5.5 for large walkthroughs only when Codex is on the default mode
 test('prompts generated walkthroughs with custom user guidance without replacing core constraints', () => {
   const prompt = buildNarrativeWalkthroughPrompt(
     {
-      branch: 'main',
       files: files.slice(0, 1),
       generatedAt: 1,
+      repository: { branch: 'main', vcs: 'git' },
       root: '/repo',
       source: { type: 'working-tree' },
     },
@@ -457,9 +457,9 @@ test('prompts generated walkthroughs with custom user guidance without replacing
 test('passes a compact previous walkthrough into regeneration prompts', () => {
   const prompt = buildNarrativeWalkthroughPrompt(
     {
-      branch: 'main',
       files: files.slice(0, 1),
       generatedAt: 1,
+      repository: { branch: 'main', vcs: 'git' },
       root: '/repo',
       source: { type: 'working-tree' },
     },
@@ -498,9 +498,9 @@ test('passes a compact previous walkthrough into regeneration prompts', () => {
 
 test('builds cache keys from semantic generation inputs', () => {
   const state = {
-    branch: 'main',
     files: [{ ...files[0], fingerprint: 'fingerprint-1' }],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: {
       description: 'Explain the change.',
@@ -594,9 +594,9 @@ test('builds cache keys from semantic generation inputs', () => {
 test('omits blank custom walkthrough prompt guidance', () => {
   const prompt = buildNarrativeWalkthroughPrompt(
     {
-      branch: 'main',
       files: files.slice(0, 1),
       generatedAt: 1,
+      repository: { branch: 'main', vcs: 'git' },
       root: '/repo',
       source: { type: 'working-tree' },
     },
@@ -610,9 +610,9 @@ test('omits blank custom walkthrough prompt guidance', () => {
 
 test('prompts generated walkthroughs with PR descriptions as orientation only', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: files.slice(0, 1),
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: {
       description: '## Intent\n\nKeep reviewers oriented.',
@@ -633,9 +633,9 @@ test('prompts generated walkthroughs with PR descriptions as orientation only', 
 
 test('truncates long PR descriptions in generated walkthrough prompts', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: files.slice(0, 1),
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: {
       description: `${'A'.repeat(4100)}UNTRUNCATED_TAIL`,
@@ -652,9 +652,9 @@ test('truncates long PR descriptions in generated walkthrough prompts', () => {
 
 test('repository digest exposes compact hunk aliases and counts', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: files.slice(0, 1),
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -668,7 +668,6 @@ test('repository digest exposes compact hunk aliases and counts', () => {
 
 test('repository digest strictly enforces section and total patch budgets', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: Array.from({ length: 100 }, (_, index) => ({
       path: `src/file-${index}.ts`,
       sections: [
@@ -681,6 +680,7 @@ test('repository digest strictly enforces section and total patch budgets', () =
       status: 'modified',
     })),
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -697,7 +697,6 @@ test('repository digest strictly enforces section and total patch budgets', () =
 
 test('repository digest includes summaries within the section patch budget', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: [
       {
         path: 'src/summary.ts',
@@ -713,6 +712,7 @@ test('repository digest includes summaries within the section patch budget', () 
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -725,7 +725,6 @@ test('repository digest includes summaries within the section patch budget', () 
 
 test('repository digest collapses generated files to one synthetic hunk', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: [
       {
         path: 'pnpm-lock.yaml',
@@ -740,6 +739,7 @@ test('repository digest collapses generated files to one synthetic hunk', () => 
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -754,7 +754,6 @@ test('repository digest collapses generated files to one synthetic hunk', () => 
 
 test('repository digest honors generated metadata that disables path heuristics', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: [
       {
         generated: false,
@@ -770,6 +769,7 @@ test('repository digest honors generated metadata that disables path heuristics'
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -781,7 +781,6 @@ test('repository digest honors generated metadata that disables path heuristics'
 
 test('repository digest exposes synthetic hunk ids for non-text sections', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: [
       {
         path: 'public/logo.png',
@@ -799,6 +798,7 @@ test('repository digest exposes synthetic hunk ids for non-text sections', () =>
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -810,7 +810,6 @@ test('repository digest exposes synthetic hunk ids for non-text sections', () =>
 
 test('repository digest exposes synthetic hunk ids for metadata-only renames', () => {
   const prompt = buildNarrativeWalkthroughPrompt({
-    branch: 'main',
     files: [
       {
         oldPath: 'old.txt',
@@ -828,6 +827,7 @@ test('repository digest exposes synthetic hunk ids for metadata-only renames', (
       },
     ],
     generatedAt: 1,
+    repository: { branch: 'main', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
@@ -839,17 +839,17 @@ test('repository digest exposes synthetic hunk ids for metadata-only renames', (
 test('normalizes a well-formed narrative walkthrough', () => {
   const result = normalizeNarrativeWalkthrough(baseInput(), files, {
     agent: 'claude',
-    branch: 'fix/hunk-nav',
     generatedAt: 1,
+    repository: { branch: 'fix/hunk-nav', vcs: 'git' },
     root: '/repo',
     source: { type: 'working-tree' },
   });
 
-  expect(result.version).toBe(4);
+  expect(result.version).toBe(5);
   expect(result.kind).toBe('narrative');
   expect(result.agent).toBe('claude');
   expect(result.generatedAt).toBe('1970-01-01T00:00:00.001Z');
-  expect(result.repo).toEqual({ branch: 'fix/hunk-nav', root: '/repo' });
+  expect(result.repo).toEqual({ info: { branch: 'fix/hunk-nav', vcs: 'git' }, root: '/repo' });
   expect(result.source).toEqual({ type: 'working-tree' });
   expect(result.meta).toBe('2 stops · 1 chapters');
   expect(result.chapters).toHaveLength(1);

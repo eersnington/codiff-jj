@@ -13,7 +13,7 @@ const execFileAsync = promisify(execFile);
  * @typedef {import('../../core/types.ts').DiffImageRevision} DiffImageRevision
  * @typedef {import('../../core/types.ts').DiffSection} DiffSection
  * @typedef {import('../../core/types.ts').DiffSectionContentRequest} DiffSectionContentRequest
- * @typedef {import('../../core/types.ts').GitFileStatus} GitFileStatus
+ * @typedef {import('../../core/types.ts').FileStatus} FileStatus
  * @typedef {import('../../core/types.ts').PullRequestReviewComment} PullRequestReviewComment
  * @typedef {import('../../core/types.ts').RepositoryState} RepositoryState
  * @typedef {import('../../core/types.ts').ReviewSource} ReviewSource
@@ -29,7 +29,7 @@ const execFileAsync = promisify(execFile);
  *   oldPath?: string;
  *   path: string;
  *   staged: boolean;
- *   status: GitFileStatus;
+ *   status: FileStatus;
  *   summary?: DiffSummary;
  *   unstaged: boolean;
  *   untracked: boolean;
@@ -836,7 +836,7 @@ const createSection = async (repoRoot, item, kind, options = {}) => {
   };
 };
 
-/** @param {string} statusCode @returns {GitFileStatus} */
+/** @param {string} statusCode @returns {FileStatus} */
 const normalizeStatus = (statusCode) =>
   statusCode === 'A'
     ? 'added'

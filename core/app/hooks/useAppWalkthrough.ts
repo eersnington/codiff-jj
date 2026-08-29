@@ -282,7 +282,6 @@ export function useAppWalkthrough({
     }
 
     const snapshot: SharedWalkthroughSnapshot = {
-      branch: currentState.branch,
       codeQualityFindings: currentState.codeQualityFindings,
       codiffVersion: 'dev',
       exportedAt: new Date().toISOString(),
@@ -297,13 +296,14 @@ export function useAppWalkthrough({
         wordWrap: preferencesRef.current.wordWrap,
       },
       repository: {
+        info: currentState.repository,
         root: currentState.root,
         source: currentState.source,
         title:
           currentState.source.type === 'commit' ? currentState.commitMetadata?.subject : undefined,
       },
       reviewComments: currentState.reviewComments,
-      version: 1,
+      version: 2,
       walkthrough: currentWalkthrough,
     };
 

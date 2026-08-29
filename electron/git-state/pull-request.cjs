@@ -684,7 +684,7 @@ const createPatchFromPullRequestFile = (file) => {
   return `${header.join('\n')}\n${file.patch}\n`;
 };
 
-/** @param {string} status @returns {GitFileStatus} */
+/** @param {string} status @returns {import('../../core/types.ts').FileStatus} */
 const normalizePullRequestFileStatus = (status) =>
   status === 'added'
     ? 'added'

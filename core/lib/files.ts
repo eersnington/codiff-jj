@@ -1,7 +1,7 @@
-import type { ChangedFile, GitFileStatus } from '../types.ts';
+import type { ChangedFile, FileStatus } from '../types.ts';
 
 export const statusForTree: Record<
-  GitFileStatus,
+  FileStatus,
   'added' | 'deleted' | 'modified' | 'renamed' | 'untracked'
 > = {
   added: 'added',

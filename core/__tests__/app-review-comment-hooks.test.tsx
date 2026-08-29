@@ -7,16 +7,17 @@ import { afterEach, expect, test, vi } from 'vite-plus/test';
 import { useAppReviewComments } from '../app/hooks/useAppReviewComments.ts';
 import type { ReviewComment } from '../lib/app-types.ts';
 import type { RepositoryState } from '../types.ts';
+import { gitRepositoryInfo } from './helpers/fixtures.ts';
 import { renderReact, waitFor } from './helpers/react.tsx';
 
 type AppReviewComments = ReturnType<typeof useAppReviewComments>;
 
 const originalCodiff = window.codiff;
 const workingTreeState = {
-  branch: 'main',
   files: [],
   generatedAt: 1,
   launchPath: '/repo',
+  repository: gitRepositoryInfo(),
   root: '/repo',
   source: { type: 'working-tree' },
 } satisfies RepositoryState;

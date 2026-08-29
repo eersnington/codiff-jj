@@ -82,6 +82,7 @@ import {
   haveReloadedFilesChanged,
   writeReloadSelection,
 } from './lib/reload-selection.ts';
+import { getRepositoryCheckoutLabel } from './lib/repository-info.ts';
 import { resolveReviewCommandTarget } from './lib/review-command-target.ts';
 import {
   buildReviewCommentsMarkdown,
@@ -1681,8 +1682,9 @@ export default function App() {
       walkthroughError?.code === 'PI_NOT_FOUND');
 
   const repositoryPathParts = splitRepositoryPath(state.root);
+  const checkoutLabel = getRepositoryCheckoutLabel(state.repository);
   const sidebarSourceLabel =
-    state.source.type !== 'working-tree' ? getSourceLabel(state.source) : null;
+    state.source.type !== 'working-tree' ? getSourceLabel(state.source, state.repository) : null;
   const pullRequestUrl = state.source.type === 'pull-request' ? state.source.url : null;
   const emptySourceDetail = getEmptySourceDetail(state.source, state.root);
 
@@ -1829,9 +1831,9 @@ export default function App() {
         }
         context={
           <>
-            {state.branch ? (
-              <span className="review-top-bar-branch" title={state.branch}>
-                {state.branch}
+            {checkoutLabel ? (
+              <span className="review-top-bar-branch" title={checkoutLabel}>
+                {checkoutLabel}
               </span>
             ) : null}
             {sidebarSourceLabel ? (
@@ -1977,7 +1979,7 @@ export default function App() {
           <ReviewSourceLoading />
         ) : showPlainCommitView ? (
           <CommitView
-            branch={state.branch}
+            branch={checkoutLabel}
             draft={narrativeNavigation}
             model={plainCommitModel}
             onCommit={commitWalkthrough}

@@ -4,7 +4,7 @@ import type { CodiffDiffStyle } from './config/types.ts';
 export type DiffSection = {
   binary: boolean;
   id: string;
-  kind: 'commit' | 'pull-request' | 'staged' | 'unstaged';
+  kind: 'commit' | 'pull-request' | 'staged' | 'unstaged' | 'working-copy';
   loadState?: 'binary' | 'deferred' | 'directory' | 'error' | 'ready' | 'too-large';
   newFile?: {
     cacheKey?: string;
@@ -27,13 +27,10 @@ export type DiffSection = {
   };
 };
 
-export type GitFileStatus =
-  | 'added'
-  | 'conflicted'
-  | 'deleted'
-  | 'modified'
-  | 'renamed'
-  | 'untracked';
+export type FileStatus = 'added' | 'conflicted' | 'deleted' | 'modified' | 'renamed' | 'untracked';
+
+/** @deprecated Use {@link FileStatus}. */
+export type GitFileStatus = FileStatus;
 
 export type ChangedFile = {
   fingerprint: string;
@@ -41,8 +38,21 @@ export type ChangedFile = {
   oldPath?: string;
   path: string;
   sections: ReadonlyArray<DiffSection>;
-  status: GitFileStatus;
+  status: FileStatus;
 };
+
+/** Current-checkout identity for a local repository. */
+export type RepositoryInfo =
+  | {
+      branch: string | null;
+      vcs: 'git';
+    }
+  | {
+      bookmarks: ReadonlyArray<string>;
+      changeId: string;
+      commitId: string;
+      vcs: 'jj';
+    };
 
 export type ReviewAuthor = {
   avatarUrl?: string;
@@ -202,7 +212,7 @@ export type CommitMetadataFile = {
   deletions?: number;
   oldPath?: string;
   path: string;
-  status: GitFileStatus;
+  status: FileStatus;
 };
 
 export type CommitMetadata = {
@@ -239,13 +249,13 @@ export type RepositoryHistory = {
 };
 
 export type RepositoryState = {
-  branch: string | null;
   codeQualityFindings?: ReadonlyArray<PullRequestCodeQualityFinding>;
   commitMetadata?: CommitMetadata;
   files: ReadonlyArray<ChangedFile>;
   generalComments?: ReadonlyArray<PullRequestGeneralCommentThread>;
   generatedAt: number;
   launchPath: string;
+  repository: RepositoryInfo;
   reviewComments?: ReadonlyArray<PullRequestExistingReviewComment>;
   root: string;
   source: ReviewSource;
@@ -334,7 +344,6 @@ export type PlanReview = {
 export type PlanHandoffStatus = 'closed' | 'done';
 
 export type SharedWalkthroughSnapshot = {
-  branch: string | null;
   codeQualityFindings?: ReadonlyArray<PullRequestCodeQualityFinding>;
   codiffVersion: string;
   exportedAt: string;
@@ -346,13 +355,25 @@ export type SharedWalkthroughSnapshot = {
   >;
   repository: {
     generalComments?: ReadonlyArray<PullRequestGeneralCommentThread>;
+    info: RepositoryInfo;
     root: string;
     source: ReviewSource;
     title?: string;
   };
   reviewComments?: ReadonlyArray<PullRequestExistingReviewComment>;
-  version: 1;
+  version: 2;
   walkthrough: NarrativeWalkthrough;
+};
+
+export type SharedWalkthroughSnapshotV1 = Omit<
+  SharedWalkthroughSnapshot,
+  'repository' | 'version'
+> & {
+  branch: string | null;
+  repository: Omit<SharedWalkthroughSnapshot['repository'], 'info'> & {
+    info?: RepositoryInfo;
+  };
+  version: 1;
 };
 
 export type SharedPlanSnapshot = {
@@ -376,7 +397,8 @@ export type SharedPlanSnapshot = {
   version: 1;
 };
 
-export type WalkthroughShareManifestV1 = SharedWalkthroughSnapshot;
+export type WalkthroughShareManifestV1 = SharedWalkthroughSnapshotV1;
+export type WalkthroughShareManifestV2 = SharedWalkthroughSnapshot;
 
 export type ShareResult =
   | {
@@ -512,7 +534,7 @@ export type WalkthroughHunk = {
   kind?: 'patch' | 'synthetic';
   oldPath?: string;
   path: string;
-  status: GitFileStatus;
+  status: FileStatus;
 };
 
 /** Shared hunk-backed fields for a stop or support group. */
@@ -594,13 +616,13 @@ export type NarrativeWalkthrough = {
   /** Display string, e.g. '6 stops · 4 chapters'. */
   meta?: string;
   repo: {
-    branch: string | null;
+    info: RepositoryInfo;
     root: string;
   };
   source: ReviewSource;
   support: ReadonlyArray<WalkthroughSupportGroup>;
   title: string;
-  version: 4;
+  version: 5;
 };
 
 export type NarrativeWalkthroughResult =
@@ -637,8 +659,8 @@ export type WalkthroughCommitRequest = {
 
 export type WalkthroughCommitResult =
   | {
-      /** Full SHA of the new commit. */
-      hash: string;
+      /** Stable revision of the new commit: Git SHA or jj change ID. */
+      revision: string;
       status: 'committed';
     }
   | {

@@ -1,14 +1,14 @@
 import { registerCustomTheme, setCustomExtension } from '@pierre/diffs';
 import dunkelTheme from '../themes/dunkel.json' with { type: 'json' };
 import lichtTheme from '../themes/licht.json' with { type: 'json' };
-import type { DiffSection, GitFileStatus } from '../types.ts';
+import type { DiffSection, FileStatus } from '../types.ts';
 
 registerCustomTheme('Licht', async () => lichtTheme as never);
 registerCustomTheme('Dunkel', async () => dunkelTheme as never);
 setCustomExtension('cts', 'typescript');
 setCustomExtension('mts', 'typescript');
 
-export const statusLabel: Record<GitFileStatus, string> = {
+export const statusLabel: Record<FileStatus, string> = {
   added: 'Added',
   conflicted: 'Conflicted',
   deleted: 'Deleted',
@@ -22,6 +22,7 @@ export const sectionLabel: Record<DiffSection['kind'], string> = {
   'pull-request': 'PR',
   staged: 'Staged',
   unstaged: 'Unstaged',
+  'working-copy': 'Working copy',
 };
 
 // 11px needed to account for the box shadow around individual diffs

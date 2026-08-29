@@ -8,7 +8,7 @@ import { expect, test, vi } from 'vite-plus/test';
 import { ReviewTopBar } from '../app/components/ReviewTopBar.tsx';
 import { ReviewSurface, type ReviewCommenting } from '../react.ts';
 import type { NarrativeWalkthrough, SharedWalkthroughSnapshot } from '../types.ts';
-import { createChangedFile } from './helpers/fixtures.ts';
+import { createChangedFile, gitRepositoryInfo } from './helpers/fixtures.ts';
 import { renderReact, waitFor } from './helpers/react.tsx';
 
 const reactActEnvironment = globalThis as typeof globalThis & {
@@ -67,7 +67,6 @@ const commenting = {
 
 const sharedWalkthroughSource = { type: 'working-tree' } as const;
 const sharedWalkthroughSnapshot = {
-  branch: 'main',
   codiffVersion: '1.4.1',
   exportedAt: '2026-06-19T00:00:00.000Z',
   files: [createChangedFile('src/app.ts')],
@@ -80,19 +79,23 @@ const sharedWalkthroughSnapshot = {
     theme: 'system',
     wordWrap: false,
   },
-  repository: { root: '/Users/ada/dev/codiff-web', source: sharedWalkthroughSource },
-  version: 1,
+  repository: {
+    info: gitRepositoryInfo(),
+    root: '/Users/ada/dev/codiff-web',
+    source: sharedWalkthroughSource,
+  },
+  version: 2,
   walkthrough: {
     agent: 'codex',
     chapters: [],
     focus: 'Focus on the implementation.',
     generatedAt: '2026-06-19T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/Users/ada/dev/codiff-web' },
+    repo: { info: gitRepositoryInfo(), root: '/Users/ada/dev/codiff-web' },
     source: sharedWalkthroughSource,
     support: [],
     title: 'Shared walkthrough',
-    version: 4,
+    version: 5,
   },
 } satisfies SharedWalkthroughSnapshot;
 
@@ -393,14 +396,13 @@ test('shared walkthroughs switch between walkthrough and tree review modes', asy
     focus: 'Focus on the implementation.',
     generatedAt: '2026-06-19T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: gitRepositoryInfo(), root: '/repo' },
     source,
     support: [],
     title: 'Shared walkthrough',
-    version: 4,
+    version: 5,
   } satisfies NarrativeWalkthrough;
   const snapshot = {
-    branch: 'main',
     codiffVersion: '1.4.1',
     exportedAt: '2026-06-19T00:00:00.000Z',
     files: [file, markdownFile],
@@ -414,10 +416,11 @@ test('shared walkthroughs switch between walkthrough and tree review modes', asy
       wordWrap: false,
     },
     repository: {
+      info: gitRepositoryInfo(),
       root: 'cloudflare/voidzero/codiff-web',
       source,
     },
-    version: 1,
+    version: 2,
     walkthrough,
   } satisfies SharedWalkthroughSnapshot;
 
@@ -577,14 +580,13 @@ test('shared walkthroughs initially preview Markdown when other files are genera
     focus: 'Review the Markdown.',
     generatedAt: '2026-06-19T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: gitRepositoryInfo(), root: '/repo' },
     source,
     support: [],
     title: 'Shared Markdown walkthrough',
-    version: 4,
+    version: 5,
   } satisfies NarrativeWalkthrough;
   const snapshot = {
-    branch: 'main',
     codiffVersion: '1.4.1',
     exportedAt: '2026-06-19T00:00:00.000Z',
     files: [file, generatedFile],
@@ -598,10 +600,11 @@ test('shared walkthroughs initially preview Markdown when other files are genera
       wordWrap: false,
     },
     repository: {
+      info: gitRepositoryInfo(),
       root: 'Shared Codiff review',
       source,
     },
-    version: 1,
+    version: 2,
     walkthrough,
   } satisfies SharedWalkthroughSnapshot;
 

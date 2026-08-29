@@ -20,13 +20,13 @@ const {
   listRepositoryHistory,
   readDiffImageContent,
   readDiffSectionContent,
-  readGitIdentity,
+  readRepositoryIdentity,
   readRepositoryState,
   readWalkthroughRepositoryState,
   submitPullRequestComment,
   submitPullRequestReview,
   validateRepositoryPath,
-} = require('./git-state.cjs');
+} = require('./repository.cjs');
 const { attachExternalLinkHandling } = require('./external-links.cjs');
 const { normalizeOpenAIModel } = require('./codex.cjs');
 const { normalizeClaudeModel } = require('./claude.cjs');
@@ -1094,7 +1094,7 @@ const focusWindow = (window) => {
 /** @param {number} webContentsId */
 const getWalkthroughShareContext = async (webContentsId) => {
   const repositoryPath = windowRepositories.get(webContentsId) || getLaunchPath();
-  const uploader = await readGitIdentity(repositoryPath);
+  const uploader = await readRepositoryIdentity(repositoryPath);
 
   return {
     target: resolveWalkthroughShareTarget({
@@ -1108,7 +1108,7 @@ const getWalkthroughShareContext = async (webContentsId) => {
 /** @param {number} webContentsId */
 const getPlanShareContext = async (webContentsId) => {
   const repositoryPath = windowRepositories.get(webContentsId) || getLaunchPath();
-  const uploader = await readGitIdentity(repositoryPath);
+  const uploader = await readRepositoryIdentity(repositoryPath);
   return {
     target: resolvePlanShareTarget({
       email: uploader.email,
@@ -1610,9 +1610,9 @@ ipcMain.handle('codiff:getNarrativeWalkthrough', async (event, source, options) 
           status: 'ready',
           walkthrough: normalizeNarrativeWalkthrough(input, state.files, {
             agent: agent.id,
-            branch: state.branch,
             context: sessionContext,
             generatedAt: state.generatedAt,
+            repository: state.repository,
             root: state.root,
             source: state.source,
           }),
@@ -1658,7 +1658,7 @@ ipcMain.handle('codiff:getNarrativeWalkthrough', async (event, source, options) 
             ...(walkthroughContext ? { context: walkthroughContext } : {}),
             agent: agent.id,
             repo: {
-              branch: state.branch,
+              info: state.repository,
               root: state.root,
             },
             source: state.source,
@@ -1815,7 +1815,7 @@ ipcMain.handle('codiff:getRepositoryHistory', async (event, limit, source) => {
 
 ipcMain.handle('codiff:getGitIdentity', async (event) => {
   const repositoryPath = windowRepositories.get(event.sender.id) || getLaunchPath();
-  return readGitIdentity(repositoryPath);
+  return readRepositoryIdentity(repositoryPath);
 });
 
 ipcMain.handle('codiff:getPreferences', () => configToPreferences(config));

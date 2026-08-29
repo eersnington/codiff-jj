@@ -135,7 +135,7 @@ test('headless share uploads the canonical snapshot and prints its URL', async (
       focus: 'Update the example value.',
       kind: 'narrative',
       title: 'Example update',
-      version: 4,
+      version: 5,
     }),
   );
 
@@ -168,11 +168,11 @@ test('headless share uploads the canonical snapshot and prints its URL', async (
       root: await realpath(repositoryPath),
       source: { type: 'working-tree' },
     },
-    version: 1,
+    version: 2,
     walkthrough: {
       agent: 'codex',
       title: 'Example update',
-      version: 4,
+      version: 5,
     },
   });
 });
@@ -410,7 +410,7 @@ test('codiff --share falls back to HEAD for a clean working tree and prints only
     focus: 'Update the example value.',
     kind: 'narrative',
     title: 'Example update',
-    version: 4,
+    version: 5,
   });
   await writeFile(
     fakeCodexPath,
@@ -457,6 +457,6 @@ exit 1
   expect(body.snapshot.walkthrough).toMatchObject({
     agent: 'codex',
     title: 'Example update',
-    version: 4,
+    version: 5,
   });
 }, 15_000);

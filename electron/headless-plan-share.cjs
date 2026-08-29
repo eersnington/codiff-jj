@@ -3,7 +3,7 @@
 const { existsSync, readFileSync } = require('node:fs');
 const { dirname, join, resolve } = require('node:path');
 const { readConfig } = require('./config.cjs');
-const { readGitIdentity } = require('./git-state.cjs');
+const { readRepositoryIdentity } = require('./repository.cjs');
 const { createSharedPlanSnapshot } = require('./shared-plan.cjs');
 const { uploadSnapshot } = require('./headless-walkthrough-share.cjs');
 const { resolvePlanShareTarget } = require('./walkthrough-sharing.cjs');
@@ -46,7 +46,9 @@ const sharePlanFile = async ({
   sessionId,
 }) => {
   const config = readConfig();
-  const uploader = hasGitMetadata(repositoryPath) ? await readGitIdentity(repositoryPath) : {};
+  const uploader = hasGitMetadata(repositoryPath)
+    ? await readRepositoryIdentity(repositoryPath)
+    : {};
   const content = readFileSync(planFile, 'utf8');
   const review = {
     document: {
