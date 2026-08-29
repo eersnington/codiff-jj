@@ -1521,6 +1521,32 @@ html[data-codiff-platform='darwin'] .sidebar {
   text-overflow: ellipsis;
 }
 
+.history-entry-meta-end {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  gap: 8px;
+}
+
+.history-entry-diff {
+  display: inline-flex;
+  font: 10px/1.2 var(--font-mono);
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.history-entry-diff-files {
+  color: var(--text-secondary, color-mix(in srgb, var(--text) 40%, transparent));
+}
+
+.history-entry-diff-add {
+  color: var(--diff-addition);
+}
+
+.history-entry-diff-del {
+  color: var(--diff-deletion);
+}
+
 .history-loading {
   color: var(--text);
   font: 12px/1.35 var(--font-sans);

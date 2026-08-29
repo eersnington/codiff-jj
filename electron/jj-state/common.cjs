@@ -52,6 +52,9 @@ const HISTORY_TEMPLATE = [
   'author.name()',
   'author.email()',
   'parents.map(|parent| parent.commit_id()).join(" ")',
+  'diff.stat().files().len()',
+  'diff.stat().total_added()',
+  'diff.stat().total_removed()',
 ].join(' ++ "\\0" ++ ');
 const SIMPLE_JJ_REF = /^[A-Za-z0-9@._/-]+$/;
 const WORKSPACE_LIST_TEMPLATE =

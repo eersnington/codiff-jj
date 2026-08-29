@@ -189,9 +189,16 @@ export type ReviewSource =
 /** Sources that can be entered from the palette or native application menu. */
 export type OpenReviewSourceKind = 'branch' | 'commit' | 'pull-request';
 
+export type HistoryDiffStat = {
+  additions: number;
+  deletions: number;
+  files: number;
+};
+
 export type HistoryEntry = {
   author: string;
   committedAt: number;
+  diff?: HistoryDiffStat;
   gravatarUrl?: string;
   parents: ReadonlyArray<string>;
   ref: string;
@@ -247,7 +254,9 @@ export type CommitMetadata = {
 export type RepositoryHistory = {
   entries: ReadonlyArray<HistoryEntry>;
   root: string;
+  stackDiff?: HistoryDiffStat;
   stackRange?: { base: string; head: string };
+  workingCopyDiff?: HistoryDiffStat;
 };
 
 export type RepositoryState = {

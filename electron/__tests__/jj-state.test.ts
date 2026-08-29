@@ -25,9 +25,17 @@ const {
     limit?: number,
     source?: ReviewSource,
   ) => Promise<{
-    entries: Array<{ ref: string; scope?: string; subject: string; workspace?: string }>;
+    entries: Array<{
+      diff?: { additions: number; deletions: number; files: number };
+      ref: string;
+      scope?: string;
+      subject: string;
+      workspace?: string;
+    }>;
     root: string;
+    stackDiff?: { additions: number; deletions: number; files: number };
     stackRange?: { base: string; head: string };
+    workingCopyDiff?: { additions: number; deletions: number; files: number };
   }>;
   readDiffSectionContent: (
     launchPath: string,
@@ -143,6 +151,7 @@ test('lists other workspace working copies after snapshotting them', async () =>
 
     expect(workspaceRow?.scope).toBe('workspace');
     expect(workspaceRow?.subject).toBe('from other');
+    expect(workspaceRow?.diff).toEqual({ additions: 1, deletions: 0, files: 1 });
   } finally {
     await rm(otherPath, { force: true, recursive: true });
   }
@@ -166,6 +175,12 @@ test('lists the trunk stack and opens it as a range', async () => {
 
   expect(stackSubjects).toEqual(['two', 'one']);
   expect(history.stackRange).toMatchObject({ base: expect.any(String), head: expect.any(String) });
+  expect(history.stackDiff).toEqual({ additions: 2, deletions: 0, files: 2 });
+  expect(history.entries.find((entry) => entry.subject === 'two')?.diff).toEqual({
+    additions: 1,
+    deletions: 0,
+    files: 1,
+  });
 
   const state = await readRepositoryState(repo.path, {
     base: history.stackRange?.base ?? '',

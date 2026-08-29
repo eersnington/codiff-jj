@@ -118,6 +118,7 @@ import type {
   CodiffUpdateStatus,
   DefinitionCandidate,
   GitIdentity,
+  HistoryDiffStat,
   HistoryEntry,
   OpenReviewSourceKind,
   RepositoryState,
@@ -183,10 +184,14 @@ export default function App() {
   const [loadError, setLoadError] = useState<RepositoryLoadError | null>(null);
   const [gitIdentity, setGitIdentity] = useState<GitIdentity | null>(null);
   const [historyEntries, setHistoryEntries] = useState<ReadonlyArray<HistoryEntry>>([]);
+  const [historyStackDiff, setHistoryStackDiff] = useState<HistoryDiffStat | null>(null);
   const [historyStackRange, setHistoryStackRange] = useState<{
     base: string;
     head: string;
   } | null>(null);
+  const [historyWorkingCopyDiff, setHistoryWorkingCopyDiff] = useState<HistoryDiffStat | null>(
+    null,
+  );
   const [historyHasMore, setHistoryHasMore] = useState(true);
   const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -767,7 +772,9 @@ export default function App() {
       setHistoryHasMore(history.entries.length >= HISTORY_PAGE_SIZE);
       setHistoryLimit(HISTORY_PAGE_SIZE);
       setHistorySource(nextHistorySource ?? null);
+      setHistoryStackDiff(history.stackDiff ?? null);
       setHistoryStackRange(history.stackRange ?? null);
+      setHistoryWorkingCopyDiff(history.workingCopyDiff ?? null);
       stateGenerationRef.current += 1;
       stateRef.current = orderedState;
       setState(orderedState);
@@ -1277,7 +1284,9 @@ export default function App() {
         setHistoryEntries(history.entries);
         setHistoryLimit(nextLimit);
         setHistoryHasMore(history.entries.length >= nextLimit);
+        setHistoryStackDiff(history.stackDiff ?? null);
         setHistoryStackRange(history.stackRange ?? null);
+        setHistoryWorkingCopyDiff(history.workingCopyDiff ?? null);
       })
       .catch(() => {
         if (historyRequestRef.current === request) {
@@ -1353,7 +1362,9 @@ export default function App() {
         setHistoryEntries(history.entries);
         setHistoryHasMore(history.entries.length >= historyLimit);
         setHistorySource(getHistorySource(orderedState.source) ?? historySourceRef.current);
+        setHistoryStackDiff(history.stackDiff ?? null);
         setHistoryStackRange(history.stackRange ?? null);
+        setHistoryWorkingCopyDiff(history.workingCopyDiff ?? null);
         setSelectedPath((current) =>
           current != null && orderedState.files.some((file) => file.path === current)
             ? current
@@ -1945,7 +1956,9 @@ export default function App() {
           historyEntries={historyEntries}
           historyHasMore={historyHasMore}
           historyLoading={historyLoading}
+          historyStackDiff={historyStackDiff}
           historyStackRange={historyStackRange}
+          historyWorkingCopyDiff={historyWorkingCopyDiff}
           keymap={codiffConfig.keymap}
           mode={sidebarMode}
           narrativeNavigation={narrativeNavigation}

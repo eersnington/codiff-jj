@@ -15,7 +15,13 @@ import {
 } from '../../lib/diff.ts';
 import { isNativeInputTarget } from '../../lib/keyboard.ts';
 import { getShortRef, getSourceKey } from '../../lib/source.ts';
-import type { ChangedFile, HistoryEntry, NarrativeWalkthrough, ReviewSource } from '../../types.ts';
+import type {
+  ChangedFile,
+  HistoryDiffStat,
+  HistoryEntry,
+  NarrativeWalkthrough,
+  ReviewSource,
+} from '../../types.ts';
 import { Avatar } from './Avatar.tsx';
 import { Button } from './Button.tsx';
 import { ReviewFileTree } from './FileTree.tsx';
@@ -32,7 +38,9 @@ export function Sidebar({
   historyEntries,
   historyHasMore,
   historyLoading,
+  historyStackDiff,
   historyStackRange,
+  historyWorkingCopyDiff,
   keymap,
   mode,
   narrativeNavigation,
@@ -62,7 +70,9 @@ export function Sidebar({
   historyEntries: ReadonlyArray<HistoryEntry>;
   historyHasMore: boolean;
   historyLoading: boolean;
+  historyStackDiff: HistoryDiffStat | null;
   historyStackRange: { base: string; head: string } | null;
+  historyWorkingCopyDiff: HistoryDiffStat | null;
   keymap: CodiffKeymap;
   mode: SidebarMode;
   narrativeNavigation: NarrativeNavigation;
@@ -140,7 +150,9 @@ export function Sidebar({
           onSelectSource={onSelectSource}
           pullRequestSource={pullRequestSource}
           searchQuery={searchQuery}
+          stackDiff={historyStackDiff}
           stackRange={historyStackRange}
+          workingCopyDiff={historyWorkingCopyDiff}
         />
       ) : mode === 'walkthrough' && narrativeWalkthrough ? (
         <NarrativeSidebar
@@ -235,6 +247,21 @@ const shortDate = (timestamp: number) => {
   return `${Math.floor(months / 12)}y ago`;
 };
 
+const formatHistoryDiff = (diff?: HistoryDiffStat | null) =>
+  diff && (diff.files || diff.additions || diff.deletions)
+    ? `${diff.files}f +${diff.additions} -${diff.deletions}`
+    : null;
+
+function HistoryDiffStatLabel({ diff }: { diff: HistoryDiffStat }) {
+  return (
+    <span className="history-entry-diff">
+      <span className="history-entry-diff-files">{diff.files}f</span>
+      <span className="history-entry-diff-add">+{diff.additions}</span>
+      <span className="history-entry-diff-del">-{diff.deletions}</span>
+    </span>
+  );
+}
+
 function HistorySidebar({
   branchSource,
   currentSource,
@@ -245,7 +272,9 @@ function HistorySidebar({
   onSelectSource,
   pullRequestSource,
   searchQuery,
+  stackDiff,
   stackRange,
+  workingCopyDiff,
 }: {
   branchSource: Extract<ReviewSource, { type: 'branch-diff' }> | null;
   currentSource: ReviewSource;
@@ -256,7 +285,9 @@ function HistorySidebar({
   onSelectSource: (source: ReviewSource) => void;
   pullRequestSource: PullRequestSource | null;
   searchQuery: string;
+  stackDiff: HistoryDiffStat | null;
   stackRange: { base: string; head: string } | null;
+  workingCopyDiff: HistoryDiffStat | null;
 }) {
   const currentSourceKey = getSourceKey(currentSource);
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -265,6 +296,7 @@ function HistorySidebar({
     const commitRows = entries.map((entry) => ({
       author: entry.author,
       committedAt: entry.committedAt,
+      diff: entry.diff,
       gravatarUrl: entry.gravatarUrl,
       key: `commit:${entry.ref}`,
       kind: 'entry' as const,
@@ -402,6 +434,7 @@ function HistorySidebar({
         ? {
             author: null,
             committedAt: null,
+            diff: workingCopyDiff ?? undefined,
             gravatarUrl: undefined,
             key: 'working-tree',
             kind: 'entry' as const,
@@ -414,6 +447,7 @@ function HistorySidebar({
         ? {
             author: null,
             committedAt: null,
+            diff: stackDiff ?? undefined,
             gravatarUrl: undefined,
             key: getSourceKey(stackSource),
             kind: 'entry' as const,
@@ -435,7 +469,15 @@ function HistorySidebar({
         : null,
       ...localRows,
     ].filter((row): row is NonNullable<typeof row> => row != null);
-  }, [branchSource, entries, normalizedQuery, pullRequestSource, stackRange]);
+  }, [
+    branchSource,
+    entries,
+    normalizedQuery,
+    pullRequestSource,
+    stackDiff,
+    stackRange,
+    workingCopyDiff,
+  ]);
   const maybeLoadMore = useCallback(() => {
     const element = listRef.current;
     if (!element || loading || !hasMore || normalizedQuery) {
@@ -460,12 +502,14 @@ function HistorySidebar({
 
         const selected = row.key === currentSourceKey;
         const hasMetadata = Boolean(row.author && row.committedAt);
+        const diffLabel = formatHistoryDiff('diff' in row ? row.diff : null);
+        const showMeta = hasMetadata || Boolean(diffLabel);
         return (
           <button
-            className={`history-entry${selected ? ' selected' : ''}${hasMetadata ? ' with-metadata' : ''}`}
+            className={`history-entry${selected ? ' selected' : ''}${showMeta ? ' with-metadata' : ''}`}
             key={row.key}
             onClick={() => onSelectSource(row.source)}
-            title={row.subject}
+            title={diffLabel ? `${row.subject} (${diffLabel})` : row.subject}
             type="button"
           >
             <span className="history-entry-ref">
@@ -479,13 +523,22 @@ function HistorySidebar({
                   : 'local'}
             </span>
             <span className="history-entry-subject">{row.subject}</span>
-            {hasMetadata ? (
+            {showMeta ? (
               <span className="history-entry-meta">
-                <span className="history-entry-author">
-                  <Avatar name={row.author || '?'} size="small" url={row.gravatarUrl} />
-                  <span>{row.author}</span>
+                {hasMetadata ? (
+                  <span className="history-entry-author">
+                    <Avatar name={row.author || '?'} size="small" url={row.gravatarUrl} />
+                    <span>{row.author}</span>
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span className="history-entry-meta-end">
+                  {diffLabel && 'diff' in row && row.diff ? (
+                    <HistoryDiffStatLabel diff={row.diff} />
+                  ) : null}
+                  {hasMetadata ? <span>{shortDate(row.committedAt || 0)}</span> : null}
                 </span>
-                <span>{shortDate(row.committedAt || 0)}</span>
               </span>
             ) : null}
           </button>

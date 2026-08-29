@@ -350,15 +350,28 @@ const parseJjHistory = (raw) => {
     if (!line) {
       continue;
     }
-    const [commitId, changeId, divergent, timestamp, subject, author, email, parents] =
-      line.split('\0');
+    const [
+      commitId,
+      changeId,
+      divergent,
+      timestamp,
+      subject,
+      author,
+      email,
+      parents,
+      files,
+      additions,
+      deletions,
+    ] = line.split('\0');
     if (!commitId || !changeId) {
       continue;
     }
+    const diff = createHistoryDiffStat(files, additions, deletions);
     entries.push({
       author: author || '',
       committedAt: parseJjTimestamp(timestamp || ''),
       commitId,
+      ...(diff ? { diff } : {}),
       gravatarUrl: email
         ? `https://www.gravatar.com/avatar/${getGravatarHash(email)}?s=80&d=identicon`
         : undefined,
@@ -368,6 +381,33 @@ const parseJjHistory = (raw) => {
     });
   }
   return entries;
+};
+
+/** @param {string | undefined} files @param {string | undefined} additions @param {string | undefined} deletions */
+const createHistoryDiffStat = (files, additions, deletions) => {
+  const stat = {
+    additions: Number(additions) || 0,
+    deletions: Number(deletions) || 0,
+    files: Number(files) || 0,
+  };
+  return stat.files || stat.additions || stat.deletions ? stat : undefined;
+};
+
+/** @param {string} repoRoot @param {ReadonlyArray<string>} args */
+const readJjDiffStat = async (repoRoot, args) => {
+  try {
+    const raw = await jj(repoRoot, ['diff', '--stat', ...args]);
+    const line = raw.split('\n').findLast((candidate) => candidate.includes(' changed'));
+    if (!line) {
+      return undefined;
+    }
+    const files = /(\d+) files? changed/.exec(line)?.[1];
+    const additions = /(\d+) insertions?/.exec(line)?.[1];
+    const deletions = /(\d+) deletions?/.exec(line)?.[1];
+    return createHistoryDiffStat(files, additions, deletions);
+  } catch {
+    return undefined;
+  }
 };
 
 const DEFAULT_JJ_LOG_REVSET = 'present(@) | ancestors(immutable_heads().., 2) | trunk()';
@@ -464,6 +504,14 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
       comparisonSource ? Promise.resolve(new Set()) : listJjCommitIds(repoRoot, JJ_STACK_REVSET),
       comparisonSource ? Promise.resolve(null) : readJjStackRange(repoRoot),
     ]);
+    const [workingCopyDiff, stackDiff] = comparisonSource
+      ? [undefined, undefined]
+      : await Promise.all([
+          readJjDiffStat(repoRoot, ['-r', '@']),
+          stackRange
+            ? readJjDiffStat(repoRoot, ['--from', stackRange.base, '--to', stackRange.head])
+            : Promise.resolve(undefined),
+        ]);
     const workspaceByCommit = new Map(
       workspaces
         .filter((workspace) => !workspace.current)
@@ -473,7 +521,9 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
     return {
       entries,
       root: repoRoot,
+      ...(stackDiff ? { stackDiff } : {}),
       ...(stackIds.size > 0 && stackRange ? { stackRange } : {}),
+      ...(workingCopyDiff ? { workingCopyDiff } : {}),
     };
   } catch {
     return { entries: [], root: repoRoot };
