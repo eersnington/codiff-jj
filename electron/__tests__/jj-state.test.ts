@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
@@ -24,7 +24,10 @@ const {
     launchPath: string,
     limit?: number,
     source?: ReviewSource,
-  ) => Promise<{ entries: Array<{ ref: string; subject: string }>; root: string }>;
+  ) => Promise<{
+    entries: Array<{ ref: string; scope?: string; subject: string; workspace?: string }>;
+    root: string;
+  }>;
   readDiffSectionContent: (
     launchPath: string,
     request: { force?: boolean; kind: string; path: string; source?: ReviewSource },
@@ -124,6 +127,24 @@ test('lists committed ancestors and nearby jj log heads', async () => {
   expect(subjects).toContain('a');
   expect(subjects).toContain('b');
   expect(subjects).toContain('side');
+});
+
+test('lists other workspace working copies after snapshotting them', async () => {
+  await using repo = await createJjTestRepository();
+  const otherPath = `${repo.path}.other`;
+  await jj(repo.path, ['workspace', 'add', '--name', 'other', otherPath]);
+  await jj(otherPath, ['describe', '-m', 'from other']);
+  await writeFile(join(otherPath, 'other.txt'), 'from other\n');
+
+  try {
+    const history = await listRepositoryHistory(repo.path, 20);
+    const workspaceRow = history.entries.find((entry) => entry.workspace === 'other');
+
+    expect(workspaceRow?.scope).toBe('workspace');
+    expect(workspaceRow?.subject).toBe('from other');
+  } finally {
+    await rm(otherPath, { force: true, recursive: true });
+  }
 });
 
 test('opens a divergent change by change id', async () => {

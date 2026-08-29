@@ -195,8 +195,9 @@ export type HistoryEntry = {
   gravatarUrl?: string;
   parents: ReadonlyArray<string>;
   ref: string;
-  scope?: 'base' | 'pull-request';
+  scope?: 'base' | 'pull-request' | 'workspace';
   subject: string;
+  workspace?: string;
 };
 
 export type CommitMetadataPerson = {

@@ -54,6 +54,8 @@ const HISTORY_TEMPLATE = [
   'parents.map(|parent| parent.commit_id()).join(" ")',
 ].join(' ++ "\\0" ++ ');
 const SIMPLE_JJ_REF = /^[A-Za-z0-9@._/-]+$/;
+const WORKSPACE_LIST_TEMPLATE =
+  'name ++ "\\0" ++ if(target.current_working_copy(), "1", "0") ++ "\\0" ++ target.commit_id() ++ "\\0" ++ target.change_id() ++ "\\0" ++ target.description().first_line() ++ "\\n"';
 
 /**
  * @typedef {import('../../core/types.ts').ChangedFile} ChangedFile
@@ -128,6 +130,64 @@ const jj = async (repoPath, args, options = {}) => {
 
 /** @param {string} repoPath */
 const snapshotWorkingCopy = (repoPath) => jj(repoPath, ['util', 'snapshot'], { snapshot: true });
+
+/**
+ * @typedef {{changeId: string; commitId: string; current: boolean; name: string; subject: string}} JjWorkspace
+ */
+
+/** @param {string} raw */
+const parseJjWorkspaces = (raw) => {
+  /** @type {Array<JjWorkspace>} */
+  const workspaces = [];
+  for (const line of raw.split('\n')) {
+    if (!line) {
+      continue;
+    }
+    const [name, current, commitId, changeId, subject] = line.split('\0');
+    if (!name || !commitId) {
+      continue;
+    }
+    workspaces.push({
+      changeId: changeId || '',
+      commitId,
+      current: current === '1',
+      name,
+      subject: subject || '',
+    });
+  }
+  return workspaces;
+};
+
+/** @param {string} repoPath */
+const listJjWorkspaces = async (repoPath) => {
+  try {
+    return parseJjWorkspaces(
+      await jj(repoPath, ['workspace', 'list', '-T', WORKSPACE_LIST_TEMPLATE]),
+    );
+  } catch {
+    return [];
+  }
+};
+
+/** Snapshot every other workspace so their working-copy commits are visible. */
+const snapshotOtherJjWorkspaces = async (repoPath) => {
+  const workspaces = await listJjWorkspaces(repoPath);
+  await Promise.all(
+    workspaces
+      .filter((workspace) => !workspace.current)
+      .map(async (workspace) => {
+        try {
+          const root = (await jj(repoPath, ['workspace', 'root', '--name', workspace.name])).trim();
+          if (root) {
+            await snapshotWorkingCopy(root);
+          }
+        } catch {
+          // Leave a stale working copy out of history rather than failing the list.
+        }
+      }),
+  );
+  return listJjWorkspaces(repoPath);
+};
 
 /** @param {string} repoPath */
 const readJjWorkspaceRoot = async (repoPath) =>
@@ -533,10 +593,12 @@ module.exports = {
   getGravatarHash,
   jj,
   listJjDiffEntries,
+  listJjWorkspaces,
   parseJjCheckoutIdentity,
   parseJjDiffEntries,
   quoteJjFileset,
   readJjCheckoutIdentity,
+  snapshotOtherJjWorkspaces,
   readJjFile,
   readJjGitPatchMap,
   readJjGitRoot,

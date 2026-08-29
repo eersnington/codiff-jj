@@ -13,6 +13,7 @@ const {
   readJjGitPatchMap,
   readJjImageFile,
   readJjWorkspaceRoot,
+  snapshotOtherJjWorkspaces,
   snapshotWorkingCopy,
   shouldEagerlyReadContents,
   validateRepositoryPath,
@@ -357,6 +358,7 @@ const parseJjHistory = (raw) => {
     entries.push({
       author: author || '',
       committedAt: parseJjTimestamp(timestamp || ''),
+      commitId,
       gravatarUrl: email
         ? `https://www.gravatar.com/avatar/${getGravatarHash(email)}?s=80&d=identicon`
         : undefined,
@@ -381,20 +383,37 @@ const readJjWorkingCopyHistoryRevset = async (repoRoot) => {
   } catch {
     // Keep the default `jj log` window.
   }
-  return `((${logRevset}) | ancestors(@-)) ~ @`;
+  return `((${logRevset}) | ancestors(@-) | working_copies()) ~ @`;
 };
+
+/**
+ * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} entries
+ * @param {Map<string, string>} workspaceByCommit
+ */
+const annotateJjHistory = (entries, workspaceByCommit) =>
+  entries.map((entry) => {
+    const { commitId, ...historyEntry } = entry;
+    const workspace = commitId ? workspaceByCommit.get(commitId) : undefined;
+    return {
+      ...historyEntry,
+      ...(workspace ? { scope: /** @type {const} */ ('workspace'), workspace } : {}),
+    };
+  });
 
 /** @param {string} launchPath @param {number} [limit] @param {ReviewSource} [source] */
 const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
   const repoRoot = await readJjWorkspaceRoot(launchPath);
-  const revset =
+  const comparisonSource =
     source?.type === 'branch' ||
     source?.type === 'branch-diff' ||
-    source?.type === 'branch-working-tree'
-      ? `${source.ref}..@`
-      : source?.type === 'range'
-        ? `${source.base}..${source.head}`
-        : await readJjWorkingCopyHistoryRevset(repoRoot);
+    source?.type === 'branch-working-tree' ||
+    source?.type === 'range';
+  const workspaces = comparisonSource ? [] : await snapshotOtherJjWorkspaces(repoRoot);
+  const revset = comparisonSource
+    ? source.type === 'range'
+      ? `${source.base}..${source.head}`
+      : `${source.ref}..@`
+    : await readJjWorkingCopyHistoryRevset(repoRoot);
   try {
     const raw = await jj(repoRoot, [
       'log',
@@ -406,7 +425,15 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
       '-T',
       `${HISTORY_TEMPLATE} ++ "\\n"`,
     ]);
-    return { entries: parseJjHistory(raw), root: repoRoot };
+    const workspaceByCommit = new Map(
+      workspaces
+        .filter((workspace) => !workspace.current)
+        .map((workspace) => [workspace.commitId, workspace.name]),
+    );
+    return {
+      entries: annotateJjHistory(parseJjHistory(raw), workspaceByCommit),
+      root: repoRoot,
+    };
   } catch {
     return { entries: [], root: repoRoot };
   }

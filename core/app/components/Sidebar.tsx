@@ -266,13 +266,17 @@ function HistorySidebar({
       ref: entry.ref,
       scope: entry.scope,
       source: { ref: entry.ref, type: 'commit' } satisfies ReviewSource,
-      subject: entry.subject,
+      subject: entry.workspace
+        ? `${entry.workspace}: ${entry.subject || 'Working copy'}`
+        : entry.subject,
+      workspace: entry.workspace,
     }));
     const matchesQuery = (row: (typeof commitRows)[number]) =>
       !normalizedQuery ||
       row.subject.toLowerCase().includes(normalizedQuery) ||
       row.ref.toLowerCase().includes(normalizedQuery) ||
-      row.author.toLowerCase().includes(normalizedQuery);
+      row.author.toLowerCase().includes(normalizedQuery) ||
+      (row.workspace != null && row.workspace.toLowerCase().includes(normalizedQuery));
 
     if (pullRequestSource) {
       const hasScopedRows = commitRows.some((row) => row.scope != null);
@@ -373,7 +377,10 @@ function HistorySidebar({
       ].filter((row): row is NonNullable<typeof row> => row != null);
     }
 
-    const localRows = commitRows.filter(matchesQuery);
+    const workspaceRows = commitRows
+      .filter((row) => row.scope === 'workspace')
+      .filter(matchesQuery);
+    const localRows = commitRows.filter((row) => row.scope !== 'workspace').filter(matchesQuery);
     return [
       !normalizedQuery
         ? {
@@ -386,6 +393,13 @@ function HistorySidebar({
             source: { type: 'working-tree' } satisfies ReviewSource,
             subject: 'Uncommitted changes',
           }
+        : null,
+      workspaceRows.length > 0
+        ? { key: 'history-section:workspaces', kind: 'section' as const, label: 'Workspaces' }
+        : null,
+      ...workspaceRows,
+      localRows.length > 0
+        ? { key: 'history-section:history', kind: 'section' as const, label: 'History' }
         : null,
       ...localRows,
     ].filter((row): row is NonNullable<typeof row> => row != null);
