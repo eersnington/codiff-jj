@@ -349,7 +349,8 @@ const parseJjHistory = (raw) => {
     if (!line) {
       continue;
     }
-    const [commitId, changeId, timestamp, subject, author, email, parents] = line.split('\0');
+    const [commitId, changeId, divergent, timestamp, subject, author, email, parents] =
+      line.split('\0');
     if (!commitId || !changeId) {
       continue;
     }
@@ -360,7 +361,7 @@ const parseJjHistory = (raw) => {
         ? `https://www.gravatar.com/avatar/${getGravatarHash(email)}?s=80&d=identicon`
         : undefined,
       parents: parents ? parents.split(' ').filter(Boolean) : [],
-      ref: changeId,
+      ref: divergent === '1' ? commitId : changeId,
       subject: subject || '',
     });
   }

@@ -2,22 +2,35 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-import { createJjTestRepository, jj } from '../../core/__tests__/helpers/jj.ts';
+import {
+  createDivergentChange,
+  createJjTestRepository,
+  jj,
+} from '../../core/__tests__/helpers/jj.ts';
 import type { RepositoryState, ReviewSource } from '../../core/types.ts';
 
 const require = createRequire(import.meta.url);
-const { createWalkthroughCommit, readDiffSectionContent, readRepositoryState } =
-  require('../repository.cjs') as {
-    createWalkthroughCommit: (
-      repoPath: string,
-      request: { body?: string; paths?: ReadonlyArray<string>; subject?: string },
-    ) => Promise<{ revision: string; status: 'committed' } | { reason: string; status: 'failed' }>;
-    readDiffSectionContent: (
-      launchPath: string,
-      request: { force?: boolean; kind: string; path: string; source?: ReviewSource },
-    ) => Promise<{ kind: string; newFile?: { contents: string }; path?: string }>;
-    readRepositoryState: (launchPath: string, source?: ReviewSource) => Promise<RepositoryState>;
-  };
+const {
+  createWalkthroughCommit,
+  listRepositoryHistory,
+  readDiffSectionContent,
+  readRepositoryState,
+} = require('../repository.cjs') as {
+  createWalkthroughCommit: (
+    repoPath: string,
+    request: { body?: string; paths?: ReadonlyArray<string>; subject?: string },
+  ) => Promise<{ revision: string; status: 'committed' } | { reason: string; status: 'failed' }>;
+  listRepositoryHistory: (
+    launchPath: string,
+    limit?: number,
+    source?: ReviewSource,
+  ) => Promise<{ entries: Array<{ ref: string; subject: string }>; root: string }>;
+  readDiffSectionContent: (
+    launchPath: string,
+    request: { force?: boolean; kind: string; path: string; source?: ReviewSource },
+  ) => Promise<{ kind: string; newFile?: { contents: string }; path?: string }>;
+  readRepositoryState: (launchPath: string, source?: ReviewSource) => Promise<RepositoryState>;
+};
 
 test('reads working-copy changes from a Jujutsu repository', async () => {
   await using repo = await createJjTestRepository();
@@ -93,4 +106,22 @@ test('loads working-copy file contents on demand', async () => {
     source: { type: 'working-tree' },
   });
   expect(section.newFile?.contents).toBe('export const value = 1;\n');
+});
+
+test('opens a divergent change by change id', async () => {
+  await using repo = await createJjTestRepository();
+  await writeFile(join(repo.path, 'notes.txt'), 'hello\n');
+  await jj(repo.path, ['commit', '-m', 'one']);
+  const { changeId, originalCommitId } = await createDivergentChange(repo.path);
+
+  const state = await readRepositoryState(repo.path, { ref: changeId, type: 'commit' });
+
+  expect(state.repository.vcs).toBe('jj');
+  expect(state.source).toMatchObject({ type: 'commit' });
+  expect(state.source.type === 'commit' ? state.source.ref : null).toBe(originalCommitId);
+  expect(state.files.map((file) => file.path)).toContain('notes.txt');
+
+  const history = await listRepositoryHistory(repo.path);
+  const original = history.entries.find((entry) => entry.subject === 'one');
+  expect(original?.ref).toBe(originalCommitId);
 });

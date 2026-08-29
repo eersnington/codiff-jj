@@ -46,12 +46,14 @@ const DIFF_ENTRY_TEMPLATE =
 const HISTORY_TEMPLATE = [
   'commit_id',
   'change_id',
+  'if(divergent, "1", "0")',
   'committer.timestamp().format("%+")',
   'description.first_line()',
   'author.name()',
   'author.email()',
   'parents.map(|parent| parent.commit_id()).join(" ")',
 ].join(' ++ "\\0" ++ ');
+const SIMPLE_JJ_REF = /^[A-Za-z0-9@._/-]+$/;
 
 /**
  * @typedef {import('../../core/types.ts').ChangedFile} ChangedFile
@@ -178,11 +180,48 @@ const parseJjCheckoutIdentity = (raw) => {
   };
 };
 
-/** @param {string} repoPath @param {string} [revision] */
-const readJjCheckoutIdentity = async (repoPath, revision = '@') =>
+/** @param {unknown} error */
+const isDivergentChangeError = (error) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const detail = `${/** @type {{stderr?: string}} */ (error).stderr || ''} ${error.message}`;
+  return /is divergent/i.test(detail);
+};
+
+/** @param {string} revision */
+const uniqueJjRevisionFallbacks = (revision) =>
+  SIMPLE_JJ_REF.test(revision)
+    ? [`latest(ancestors(@) & change_id(${revision}))`, `latest(change_id(${revision}))`]
+    : [];
+
+/**
+ * @param {string} repoPath
+ * @param {string} revision
+ */
+const readJjLogIdentity = async (repoPath, revision) =>
   parseJjCheckoutIdentity(
     await jj(repoPath, ['log', '-r', revision, '-n', '1', '--no-graph', '-T', CHECKOUT_TEMPLATE]),
   );
+
+/** @param {string} repoPath @param {string} [revision] */
+const readJjCheckoutIdentity = async (repoPath, revision = '@') => {
+  try {
+    return await readJjLogIdentity(repoPath, revision);
+  } catch (error) {
+    if (!isDivergentChangeError(error)) {
+      throw error;
+    }
+    for (const revset of uniqueJjRevisionFallbacks(revision)) {
+      try {
+        return await readJjLogIdentity(repoPath, revset);
+      } catch {
+        // Try the next unique revset.
+      }
+    }
+    throw error;
+  }
+};
 
 /** @param {JjCheckoutIdentity} identity */
 const createJjRepositoryInfo = (identity) => ({

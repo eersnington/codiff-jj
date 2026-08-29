@@ -65,9 +65,20 @@ const isJjBookmark = (repositoryPath, ref) =>
     'commit_id',
   ]);
 
+const SIMPLE_JJ_REF = /^[A-Za-z0-9@._/-]+$/;
+
+/** @param {string} ref */
+const uniqueJjRevisionFallbacks = (ref) =>
+  SIMPLE_JJ_REF.test(ref)
+    ? [`latest(ancestors(@) & change_id(${ref}))`, `latest(change_id(${ref}))`]
+    : [];
+
 /** @param {string} repositoryPath @param {string} ref */
 const isJjRevision = (repositoryPath, ref) =>
-  jjSucceeds(repositoryPath, ['log', '-r', ref, '-n', '1', '--no-graph', '-T', 'commit_id']);
+  jjSucceeds(repositoryPath, ['log', '-r', ref, '-n', '1', '--no-graph', '-T', 'commit_id']) ||
+  uniqueJjRevisionFallbacks(ref).some((revset) =>
+    jjSucceeds(repositoryPath, ['log', '-r', revset, '-n', '1', '--no-graph', '-T', 'commit_id']),
+  );
 
 /**
  * @param {string} repositoryPath
@@ -111,18 +122,25 @@ const isRevision = (repositoryPath, ref) =>
 const resolveCommitId = (repositoryPath, ref) => {
   try {
     if (isJjRepository(repositoryPath)) {
-      return jjOutput(repositoryPath, [
-        'log',
-        '-r',
-        ref,
-        '-n',
-        '1',
-        '--no-graph',
-        '-T',
-        'commit_id',
-      ])
-        .trim()
-        .toLowerCase();
+      for (const revset of [ref, ...uniqueJjRevisionFallbacks(ref)]) {
+        try {
+          return jjOutput(repositoryPath, [
+            'log',
+            '-r',
+            revset,
+            '-n',
+            '1',
+            '--no-graph',
+            '-T',
+            'commit_id',
+          ])
+            .trim()
+            .toLowerCase();
+        } catch {
+          // Divergent change ids need a unique revset; try the next one.
+        }
+      }
+      return null;
     }
     return execFileSync('git', ['-C', repositoryPath, 'rev-parse', '--verify', `${ref}^{commit}`], {
       encoding: 'utf8',

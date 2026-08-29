@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { createTemporaryDirectory } from './resources.ts';
 
@@ -35,4 +37,38 @@ export const createJjTestRepository = async (prefix = 'codiff-jj-') => {
   await jj(directory.path, ['config', 'set', '--repo', 'user.name', 'Codiff Test']);
   await jj(directory.path, ['config', 'set', '--repo', 'user.email', 'codiff@example.com']);
   return directory;
+};
+
+/** Make `@-` share its change id with a second visible commit. */
+export const createDivergentChange = async (repo: string) => {
+  const commitId = (
+    await jj(repo, ['log', '-r', '@-', '-n', '1', '--no-graph', '-T', 'commit_id'])
+  ).trim();
+  const { stdout: raw } = await execFileAsync('git', ['-C', repo, 'cat-file', 'commit', commitId], {
+    encoding: 'utf8',
+  });
+  const tree = /^tree (.+)$/m.exec(raw)?.[1];
+  const changeId = /^change-id (.+)$/m.exec(raw)?.[1];
+  if (!tree || !changeId) {
+    throw new Error('Could not read the change id to duplicate.');
+  }
+  const payload = [
+    `tree ${tree}`,
+    'author Codiff Test <codiff@example.com> 1577836800 +0000',
+    'committer Codiff Test <codiff@example.com> 1577923200 +0000',
+    `change-id ${changeId}`,
+    '',
+    'divergent copy',
+    '',
+  ].join('\n');
+  const objectPath = join(repo, '.divergent-commit');
+  await writeFile(objectPath, payload);
+  const { stdout: duplicate } = await execFileAsync(
+    'git',
+    ['-C', repo, 'hash-object', '-t', 'commit', '-w', objectPath],
+    { encoding: 'utf8' },
+  );
+  await execFileAsync('git', ['-C', repo, 'update-ref', 'refs/heads/divergent', duplicate.trim()]);
+  await jj(repo, ['git', 'import']);
+  return { changeId, originalCommitId: commitId };
 };
