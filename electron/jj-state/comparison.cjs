@@ -368,6 +368,22 @@ const parseJjHistory = (raw) => {
   return entries;
 };
 
+const DEFAULT_JJ_LOG_REVSET = 'present(@) | ancestors(immutable_heads().., 2) | trunk()';
+
+/** @param {string} repoRoot */
+const readJjWorkingCopyHistoryRevset = async (repoRoot) => {
+  let logRevset = DEFAULT_JJ_LOG_REVSET;
+  try {
+    const configured = (await jj(repoRoot, ['config', 'get', 'revsets.log'])).trim();
+    if (configured) {
+      logRevset = configured;
+    }
+  } catch {
+    // Keep the default `jj log` window.
+  }
+  return `((${logRevset}) | ancestors(@-)) ~ @`;
+};
+
 /** @param {string} launchPath @param {number} [limit] @param {ReviewSource} [source] */
 const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
   const repoRoot = await readJjWorkspaceRoot(launchPath);
@@ -377,10 +393,8 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
     source?.type === 'branch-working-tree'
       ? `${source.ref}..@`
       : source?.type === 'range'
-        ? source.symmetric
-          ? `${source.base}..${source.head}`
-          : `${source.base}..${source.head}`
-        : '@-';
+        ? `${source.base}..${source.head}`
+        : await readJjWorkingCopyHistoryRevset(repoRoot);
   try {
     const raw = await jj(repoRoot, [
       'log',

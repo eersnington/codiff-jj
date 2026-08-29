@@ -108,6 +108,24 @@ test('loads working-copy file contents on demand', async () => {
   expect(section.newFile?.contents).toBe('export const value = 1;\n');
 });
 
+test('lists committed ancestors and nearby jj log heads', async () => {
+  await using repo = await createJjTestRepository();
+  await writeFile(join(repo.path, 'a.txt'), 'a\n');
+  await jj(repo.path, ['commit', '-m', 'a']);
+  await writeFile(join(repo.path, 'b.txt'), 'b\n');
+  await jj(repo.path, ['commit', '-m', 'b']);
+  await jj(repo.path, ['new', '-r', '@--']);
+  await writeFile(join(repo.path, 'c.txt'), 'c\n');
+  await jj(repo.path, ['commit', '-m', 'side']);
+
+  const history = await listRepositoryHistory(repo.path, 20);
+  const subjects = history.entries.map((entry) => entry.subject);
+
+  expect(subjects).toContain('a');
+  expect(subjects).toContain('b');
+  expect(subjects).toContain('side');
+});
+
 test('opens a divergent change by change id', async () => {
   await using repo = await createJjTestRepository();
   await writeFile(join(repo.path, 'notes.txt'), 'hello\n');
