@@ -445,9 +445,11 @@ const listJjCommitIds = async (repoRoot, revset) => {
 /** @param {string} repoRoot */
 const readJjStackRange = async (repoRoot) => {
   try {
+    // The stack is everything that would be submitted, so the head is `@`:
+    // forklift counts the working-copy commit as a stack member.
     const [base, head] = await Promise.all([
       jj(repoRoot, ['log', '-r', 'trunk()', '-n', '1', '--no-graph', '-T', 'commit_id']),
-      jj(repoRoot, ['log', '-r', '@-', '-n', '1', '--no-graph', '-T', 'commit_id']),
+      jj(repoRoot, ['log', '-r', '@', '-n', '1', '--no-graph', '-T', 'commit_id']),
     ]);
     const baseId = base.trim();
     const headId = head.trim();
