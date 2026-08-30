@@ -1,5 +1,6 @@
 // @ts-check
 
+const { installIpv4DnsFallback } = require('./dns-ipv4-fallback.cjs');
 const { trustSystemCertificates } = require('./system-certificates.cjs');
 
 const poll = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -92,6 +93,7 @@ const uploadSharedSnapshot = async ({
   trustCertificates = trustSystemCertificates,
   uploader,
 }) => {
+  installIpv4DnsFallback();
   const certificateTrust = trustCertificates();
 
   const baseUrl = serviceUrl.replace(/\/+$/, '');
