@@ -141,14 +141,19 @@ module.exports = {
     ],
     name: 'Codiff',
     ...(osxNotarize ? { osxNotarize } : {}),
-    osxSign: {
-      continueOnError: false,
-      hardenedRuntime: true,
-      identity: process.env.APPLE_SIGNING_IDENTITY,
-      optionsForFile: () => ({
-        entitlements: entitlementsPath,
-      }),
-    },
+    // Signing requires the release identity; local builds stay unsigned.
+    ...(process.env.APPLE_SIGNING_IDENTITY
+      ? {
+          osxSign: {
+            continueOnError: false,
+            hardenedRuntime: true,
+            identity: process.env.APPLE_SIGNING_IDENTITY,
+            optionsForFile: () => ({
+              entitlements: entitlementsPath,
+            }),
+          },
+        }
+      : {}),
     protocols: [
       {
         name: 'Codiff',
