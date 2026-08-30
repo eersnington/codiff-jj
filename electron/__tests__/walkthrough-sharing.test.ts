@@ -28,7 +28,7 @@ test('routes users without a Cloudflare Git identity to the public service', () 
   expect(resolvePlanShareTarget({})).toEqual({
     authenticated: false,
     internal: false,
-    serviceUrl: 'https://codiff.dev',
+    serviceUrl: 'https://codiff.eers.dev',
   });
   expect(resolvePlanShareTarget({ overrideUrl: 'http://localhost:6002/' })).toEqual({
     authenticated: false,
@@ -57,7 +57,7 @@ test('routes all external Git identities to the public service', () => {
   ).toEqual({
     authenticated: false,
     internal: false,
-    serviceUrl: 'https://codiff.dev',
+    serviceUrl: 'https://codiff.eers.dev',
   });
 });
 
@@ -83,6 +83,6 @@ test('forces Cloudflare Git identities to the public service when requested', ()
   ).toEqual({
     authenticated: false,
     internal: false,
-    serviceUrl: 'https://codiff.dev',
+    serviceUrl: 'https://codiff.eers.dev',
   });
 });

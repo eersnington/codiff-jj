@@ -2,7 +2,7 @@
 
 const CLOUDFLARE_EMAIL_SUFFIX = '@cloudflare.com';
 const CLOUDFLARE_SHARE_SERVER_URL = 'https://codiff.cloudflare.dev';
-const PUBLIC_SHARE_SERVER_URL = 'https://codiff.dev';
+const PUBLIC_SHARE_SERVER_URL = 'https://codiff.eers.dev';
 
 /** @param {string | undefined} email */
 const isCloudflareEmail = (email) =>
