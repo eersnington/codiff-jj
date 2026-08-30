@@ -23,6 +23,7 @@ import {
   type WalkthroughView,
   type WalkthroughStopView,
 } from '../../../lib/narrative-walkthrough.ts';
+import { getRepositoryCheckoutLabel } from '../../../lib/repository-info.ts';
 import type { ChangedFile, NarrativeWalkthrough, WalkthroughHunkGroup } from '../../../types.ts';
 import type { ReviewDiffBlock } from '../ReviewCodeView.tsx';
 import {
@@ -692,7 +693,7 @@ export function NarrativeWalkthroughView({
 
       {navigation.mode === 'commit' ? (
         <CommitView
-          branch={walkthrough.repo.branch}
+          branch={getRepositoryCheckoutLabel(walkthrough.repo.info)}
           draft={navigation}
           model={buildCommitModel(walkthroughView, files)}
           onCommit={onCommit}

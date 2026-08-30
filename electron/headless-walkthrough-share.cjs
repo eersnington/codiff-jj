@@ -5,10 +5,10 @@ const { getAgent } = require('./agent.cjs');
 const { readConfig, writeConfig } = require('./config.cjs');
 const { createCloudflareAccessClient } = require('./cloudflare-access.cjs');
 const {
-  readGitIdentity,
+  readRepositoryIdentity,
   readRepositoryState,
   readWalkthroughRepositoryState,
-} = require('./git-state.cjs');
+} = require('./repository.cjs');
 const {
   normalizeNarrativeWalkthrough,
   readNarrativeWalkthrough,
@@ -103,7 +103,6 @@ const uploadWalkthrough = async ({
     openExternal,
     serviceUrlOverride,
     snapshot: {
-      branch: state.branch,
       files: state.files,
       kind: 'codiff-walkthrough-share',
       preferences: {
@@ -115,12 +114,13 @@ const uploadWalkthrough = async ({
         wordWrap: config.settings.wordWrap,
       },
       repository: {
+        info: state.repository,
         root: state.root,
         source: state.source,
         title: state.source.type === 'commit' ? state.commitMetadata?.subject : undefined,
       },
       reviewComments: state.reviewComments,
-      version: 1,
+      version: 2,
       walkthrough,
     },
     uploader,
@@ -136,7 +136,7 @@ const readShareState = async (repositoryPath, source, config) =>
     readRepositoryState(repositoryPath, source, {
       showWhitespace: config.settings.showWhitespace,
     }),
-    readGitIdentity(repositoryPath),
+    readRepositoryIdentity(repositoryPath),
   ]);
 
 /**
@@ -149,7 +149,7 @@ const readGeneratedShareState = async (repositoryPath, source, config) =>
     readWalkthroughRepositoryState(repositoryPath, source, {
       showWhitespace: config.settings.showWhitespace,
     }),
-    readGitIdentity(repositoryPath),
+    readRepositoryIdentity(repositoryPath),
   ]);
 
 /**
@@ -187,8 +187,8 @@ const shareWalkthroughFile = async ({
 
   const walkthrough = normalizeNarrativeWalkthrough(input, state.files, {
     agent,
-    branch: state.branch,
     generatedAt: state.generatedAt,
+    repository: state.repository,
     root: state.root,
     source: state.source,
   });

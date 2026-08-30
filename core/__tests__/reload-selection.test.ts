@@ -14,13 +14,14 @@ import {
   haveReloadedFilesChanged,
   writeReloadSelection,
 } from '../lib/reload-selection.ts';
-import type { ChangedFile, GitFileStatus, RepositoryState, ReviewSource } from '../types.ts';
+import type { ChangedFile, FileStatus, RepositoryState, ReviewSource } from '../types.ts';
+import { gitRepositoryInfo } from './helpers/fixtures.ts';
 
 beforeEach(() => {
   window.sessionStorage.clear();
 });
 
-const file = (path: string, fingerprint = `${path}:1`, status: GitFileStatus = 'modified') =>
+const file = (path: string, fingerprint = `${path}:1`, status: FileStatus = 'modified') =>
   ({
     fingerprint,
     path,
@@ -30,10 +31,10 @@ const file = (path: string, fingerprint = `${path}:1`, status: GitFileStatus = '
 
 const state = (files: ReadonlyArray<ChangedFile>) =>
   ({
-    branch: 'main',
     files,
     generatedAt: 1,
     launchPath: '/repo',
+    repository: gitRepositoryInfo(),
     root: '/repo',
     source: { type: 'working-tree' },
   }) satisfies RepositoryState;

@@ -1,4 +1,4 @@
-import type { GitFileStatus, RepositoryState, ReviewSource } from '../types.ts';
+import type { FileStatus, RepositoryState, ReviewSource } from '../types.ts';
 import { getSourceKey } from './source.ts';
 
 const reloadSelectionStorageKey = 'codiff.reloadSelection.v3';
@@ -6,7 +6,7 @@ const reloadSelectionStorageKey = 'codiff.reloadSelection.v3';
 type ReloadSelectionFile = {
   fingerprint: string;
   path: string;
-  status: GitFileStatus;
+  status: FileStatus;
 };
 
 export type ReloadMainMode = 'commit' | 'review';
@@ -77,7 +77,7 @@ const isReviewSource = (value: unknown): value is ReviewSource => {
   );
 };
 
-const isGitFileStatus = (value: unknown): value is GitFileStatus =>
+const isFileStatus = (value: unknown): value is FileStatus =>
   value === 'added' ||
   value === 'conflicted' ||
   value === 'deleted' ||
@@ -89,7 +89,7 @@ const isReloadSelectionFile = (value: unknown): value is ReloadSelectionFile =>
   isObject(value) &&
   typeof value.fingerprint === 'string' &&
   typeof value.path === 'string' &&
-  isGitFileStatus(value.status);
+  isFileStatus(value.status);
 
 const isReloadSelection = (value: unknown): value is ReloadSelection =>
   isObject(value) &&

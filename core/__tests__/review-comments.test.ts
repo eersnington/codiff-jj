@@ -10,6 +10,7 @@ import {
   toPullRequestReviewComment,
 } from '../lib/review-comments.ts';
 import type { RepositoryState } from '../types.ts';
+import { gitRepositoryInfo } from './helpers/fixtures.ts';
 
 const createReviewComment = (overrides: Partial<ReviewComment>): ReviewComment => ({
   body: 'A comment.',
@@ -22,7 +23,6 @@ const createReviewComment = (overrides: Partial<ReviewComment>): ReviewComment =
 });
 
 const createPullRequestState = (): RepositoryState => ({
-  branch: null,
   files: [
     {
       fingerprint: 'fingerprint',
@@ -40,6 +40,7 @@ const createPullRequestState = (): RepositoryState => ({
   ],
   generatedAt: 0,
   launchPath: '/repo',
+  repository: gitRepositoryInfo(null),
   reviewComments: [
     {
       author: { login: 'reviewer' },

@@ -237,11 +237,11 @@ export function RepositoryLoadErrorPanel({ error }: { error: RepositoryLoadError
   if (error.kind === 'not-a-repository') {
     return (
       <>
-        <strong>No Git repository found</strong>
+        <strong>No repository found</strong>
         <p>
-          Codiff was opened outside a Git repository. Run{' '}
-          <code className="walkthrough-inline-code">codiff</code> from inside a repo, or choose{' '}
-          <span className="empty-panel-menu-path">File → Open Folder…</span> to open one.
+          Codiff was opened outside a repository. Run{' '}
+          <code className="walkthrough-inline-code">codiff</code> from inside a Git or Jujutsu repo,
+          or choose <span className="empty-panel-menu-path">File → Open Folder…</span> to open one.
         </p>
       </>
     );

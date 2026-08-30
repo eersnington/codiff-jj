@@ -7,7 +7,7 @@ import { expect, test, vi } from 'vite-plus/test';
 import { useAppWalkthrough } from '../app/hooks/useAppWalkthrough.ts';
 import { createDefaultConfig } from '../config/defaults.ts';
 import type { NarrativeWalkthrough, RepositoryState, WalkthroughProgressEvent } from '../types.ts';
-import { createChangedFile } from './helpers/fixtures.ts';
+import { createChangedFile, gitRepositoryInfo } from './helpers/fixtures.ts';
 import { renderReact, waitFor } from './helpers/react.tsx';
 
 type AppWalkthroughController = ReturnType<typeof useAppWalkthrough>;
@@ -19,20 +19,20 @@ const walkthrough: NarrativeWalkthrough = {
   generatedAt: '2026-07-15T00:00:00.000Z',
   kind: 'narrative',
   repo: {
-    branch: 'main',
+    info: gitRepositoryInfo(),
     root: '/repo',
   },
   source: { type: 'working-tree' },
   support: [],
   title: 'Walkthrough',
-  version: 4,
+  version: 5,
 };
 
 const createRepositoryState = (): RepositoryState => ({
-  branch: 'main',
   files: [createChangedFile('src/app.ts')],
   generatedAt: 1,
   launchPath: '/repo',
+  repository: gitRepositoryInfo(),
   root: '/repo',
   source: { type: 'working-tree' },
 });
@@ -153,7 +153,7 @@ test('walkthrough controller lazily generates, refreshes, and transitions modes'
 test('walkthrough controller routes progress, commit APIs, and sharing through current state', async () => {
   let onProgress: ((progress: WalkthroughProgressEvent) => void) | null = null;
   const createWalkthroughCommit = vi.fn(async () => ({
-    hash: 'abc123',
+    revision: 'abc123',
     status: 'committed' as const,
   }));
   const updateWalkthroughCommitMessage = vi.fn(async () => ({
@@ -236,10 +236,12 @@ test('walkthrough controller routes progress, commit APIs, and sharing through c
         wordWrap: preferencesRef.current.wordWrap,
       },
       repository: {
+        info: state.repository,
         root: state.root,
         source: state.source,
         title: undefined,
       },
+      version: 2,
       walkthrough,
     }),
   );

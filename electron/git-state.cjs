@@ -98,7 +98,13 @@ const readRepositoryState = async (launchPath, source = { type: 'working-tree' }
     gitOrEmpty(state.root, ['symbolic-ref', '--short', 'HEAD']),
     comparisonState ? state : annotateGeneratedFiles(state),
   ]);
-  return { ...annotatedState, branch: branch.trim() || null };
+  return {
+    ...annotatedState,
+    repository: {
+      branch: branch.trim() || null,
+      vcs: 'git',
+    },
+  };
 };
 
 /**
@@ -132,16 +138,17 @@ const readWalkthroughRepositoryState = async (launchPath, source, options = {}) 
 
   const [head, branchHead] = status.head.split('\0');
   const branch = branchHead && branchHead !== '(detached)' ? branchHead : null;
+  const repository = { branch, vcs: /** @type {const} */ ('git') };
   if (/^[0-9a-f]+$/i.test(head)) {
     const state = await readResolvedCommitState(launchPath, repoRoot, head);
-    return { ...state, branch };
+    return { ...state, repository };
   }
 
   return {
-    branch,
     files: [],
     generatedAt: Date.now(),
     launchPath,
+    repository,
     root: repoRoot,
     source: {
       type: 'working-tree',

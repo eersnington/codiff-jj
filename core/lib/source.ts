@@ -1,4 +1,4 @@
-import type { ReviewSource } from '../types.ts';
+import type { RepositoryInfo, ReviewSource } from '../types.ts';
 import type { RepositoryLoadError } from './app-types.ts';
 import { abbreviateHomePath } from './files.ts';
 
@@ -95,11 +95,11 @@ const getErrorMessage = (error: unknown) =>
 
 export const getRepositoryLoadError = (error: unknown): RepositoryLoadError => {
   const message = getErrorMessage(error);
-  return /not a git repository/i.test(message)
+  return /not a git repository|not a jj repository|Could not find the repository/i.test(message)
     ? {
         kind: 'not-a-repository',
         message:
-          'Codiff was opened outside a Git repository. Run `codiff` from inside a repo, or choose File → Open Folder… to open one.',
+          'Codiff was opened outside a repository. Run `codiff` from inside a Git or Jujutsu repo, or choose File → Open Folder… to open one.',
       }
     : {
         kind: 'generic',
@@ -109,13 +109,17 @@ export const getRepositoryLoadError = (error: unknown): RepositoryLoadError => {
 
 export const getShortRef = (ref: string) => ref.slice(0, 7);
 
-export const getSourceLabel = (source: ReviewSource) =>
-  source.type === 'commit'
+export const getNamedReferenceNoun = (info?: RepositoryInfo) =>
+  info?.vcs === 'jj' ? 'bookmark' : 'branch';
+
+export const getSourceLabel = (source: ReviewSource, info?: RepositoryInfo) => {
+  const namedReference = getNamedReferenceNoun(info);
+  return source.type === 'commit'
     ? getShortRef(source.ref)
     : source.type === 'branch' || source.type === 'branch-diff'
-      ? `Branch vs ${source.ref}`
+      ? `${namedReference === 'bookmark' ? 'Bookmark' : 'Branch'} vs ${source.ref}`
       : source.type === 'branch-working-tree'
-        ? `Local + branch vs ${source.ref}`
+        ? `Local + ${namedReference} vs ${source.ref}`
         : source.type === 'range'
           ? rangeLabel(source)
           : source.type === 'pull-request'
@@ -124,7 +128,10 @@ export const getSourceLabel = (source: ReviewSource) =>
               : source.provider === 'gitlab'
                 ? 'Merge request'
                 : 'Pull request'
-            : 'Uncommitted';
+            : info?.vcs === 'jj'
+              ? 'Working copy'
+              : 'Uncommitted';
+};
 
 export const getHistorySource = (source: ReviewSource): ReviewSource | undefined =>
   getSourceCapabilities(source).historySource ? source : undefined;

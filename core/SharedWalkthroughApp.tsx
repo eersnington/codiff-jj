@@ -55,6 +55,7 @@ import {
 import { abbreviateHomePath, fuzzyMatches, sortFiles } from './lib/files.ts';
 import { isNativeInputTarget } from './lib/keyboard.ts';
 import { isGeneratedWalkthroughFile } from './lib/narrative-walkthrough-diff.js';
+import { getRepositoryCheckoutLabel } from './lib/repository-info.ts';
 import {
   getPendingPullRequestReviewComments,
   getReviewCommentsFromState,
@@ -163,10 +164,10 @@ const getSnapshotReviewComments = (
   }
 
   return getReviewCommentsFromState({
-    branch: snapshot.branch,
     files: snapshot.files,
     generatedAt: Date.parse(snapshot.exportedAt) || Date.now(),
     launchPath: snapshot.repository.root,
+    repository: snapshot.repository.info,
     reviewComments: snapshot.reviewComments as ReadonlyArray<PullRequestExistingReviewComment>,
     root: snapshot.repository.root,
     source: snapshot.repository.source,
@@ -1047,10 +1048,11 @@ export function ReviewSurface({
     );
   };
 
+  const checkoutLabel = getRepositoryCheckoutLabel(snapshot.repository.info);
   const sourceLabel =
     snapshot.repository.source.type === 'working-tree'
       ? null
-      : getSourceLabel(snapshot.repository.source);
+      : getSourceLabel(snapshot.repository.source, snapshot.repository.info);
   const rootLabel = repositoryUrl
     ? snapshot.repository.root
     : abbreviateHomePath(snapshot.repository.root);
@@ -1161,9 +1163,9 @@ export function ReviewSurface({
         actions={topBarActions}
         context={
           <>
-            {snapshot.branch ? (
-              <span className="review-top-bar-branch" title={snapshot.branch}>
-                {snapshot.branch}
+            {checkoutLabel ? (
+              <span className="review-top-bar-branch" title={checkoutLabel}>
+                {checkoutLabel}
               </span>
             ) : null}
             {sourceLabel ? (

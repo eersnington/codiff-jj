@@ -149,8 +149,8 @@ const createWalkthroughCommit = async (repoPath, request, onOutput) => {
     } finally {
       rmSync(tempDirectory, { force: true, recursive: true });
     }
-    const hash = (await git(repoPath, ['rev-parse', 'HEAD'])).trim();
-    return { hash, status: 'committed' };
+    const revision = (await git(repoPath, ['rev-parse', 'HEAD'])).trim();
+    return { revision, status: 'committed' };
   } catch (error) {
     return {
       reason: error instanceof Error ? error.message : String(error),

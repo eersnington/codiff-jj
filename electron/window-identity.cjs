@@ -3,6 +3,13 @@
 const { execFileSync } = require('node:child_process');
 const { realpathSync } = require('node:fs');
 const { dirname, resolve } = require('node:path');
+const { discoverRepository } = require('./repository-discovery.cjs');
+const {
+  hasWorkingCopyChanges,
+  isJjRepository,
+  resolveCommitId,
+  resolveComparisonBase,
+} = require('./repository-source.cjs');
 const { parseReviewUrl } = require('./review-source.cjs');
 
 /**
@@ -24,7 +31,10 @@ const getRealPath = (path) => {
 /** @param {string} repositoryPath */
 const resolveRepositoryRoot = (repositoryPath) => {
   const resolvedPath = resolve(repositoryPath);
-
+  const discovered = discoverRepository(resolvedPath);
+  if (discovered.kind !== 'none') {
+    return getRealPath(discovered.workspaceRoot);
+  }
   try {
     return getRealPath(
       execFileSync('git', ['-C', resolvedPath, 'rev-parse', '--show-toplevel'], {
@@ -36,46 +46,8 @@ const resolveRepositoryRoot = (repositoryPath) => {
   }
 };
 
-/** @param {string} repositoryRoot @param {string} ref */
-const resolveCommitRef = (repositoryRoot, ref) => {
-  try {
-    return execFileSync('git', ['-C', repositoryRoot, 'rev-parse', '--verify', `${ref}^{commit}`], {
-      encoding: 'utf8',
-    })
-      .trim()
-      .toLowerCase();
-  } catch {
-    return null;
-  }
-};
-
 /** @param {string} repositoryRoot */
-const hasWorkingTreeChanges = (repositoryRoot) => {
-  try {
-    return Boolean(
-      execFileSync(
-        'git',
-        ['-C', repositoryRoot, 'status', '--porcelain=v1', '-z', '--untracked-files=normal'],
-        { encoding: 'utf8' },
-      ),
-    );
-  } catch {
-    return false;
-  }
-};
-
-/** @param {string} repositoryRoot @param {string} baseRef @param {string} headRef */
-const resolveMergeBase = (repositoryRoot, baseRef, headRef) => {
-  try {
-    return execFileSync('git', ['-C', repositoryRoot, 'merge-base', baseRef, headRef], {
-      encoding: 'utf8',
-    })
-      .trim()
-      .toLowerCase();
-  } catch {
-    return null;
-  }
-};
+const currentCheckoutRef = (repositoryRoot) => (isJjRepository(repositoryRoot) ? '@' : 'HEAD');
 
 /** @param {Extract<ReviewSource, {type: 'pull-request'}>} source */
 const getPullRequestSourceKey = (source) => {
@@ -114,20 +86,20 @@ const getSourceKey = (repositoryRoot, source = { type: 'working-tree' }) => {
   }
 
   if (source.type === 'commit') {
-    const commit = resolveCommitRef(repositoryRoot, source.ref);
+    const commit = resolveCommitId(repositoryRoot, source.ref);
     return commit ? `commit:${commit}` : null;
   }
 
   if (source.type === 'branch') {
-    const head = resolveCommitRef(repositoryRoot, 'HEAD');
-    const target = resolveCommitRef(repositoryRoot, source.ref);
-    const nextBase = target && head ? resolveMergeBase(repositoryRoot, target, head) : null;
+    const head = resolveCommitId(repositoryRoot, currentCheckoutRef(repositoryRoot));
+    const target = resolveCommitId(repositoryRoot, source.ref);
+    const nextBase = target && head ? resolveComparisonBase(repositoryRoot, target, head) : null;
     return nextBase && head ? `branch-diff:${source.ref}:${nextBase}:${head}` : null;
   }
 
   if (source.type === 'branch-diff') {
-    const base = resolveCommitRef(repositoryRoot, source.baseRef);
-    const head = resolveCommitRef(repositoryRoot, source.headRef);
+    const base = resolveCommitId(repositoryRoot, source.baseRef);
+    const head = resolveCommitId(repositoryRoot, source.headRef);
     return base && head ? `branch-diff:${source.ref}:${base}:${head}` : null;
   }
 
@@ -138,14 +110,14 @@ const getSourceKey = (repositoryRoot, source = { type: 'working-tree' }) => {
       source.baseRef &&
       source.headRef
     ) {
-      const base = resolveCommitRef(repositoryRoot, source.baseRef);
-      const head = resolveCommitRef(repositoryRoot, source.headRef);
+      const base = resolveCommitId(repositoryRoot, source.baseRef);
+      const head = resolveCommitId(repositoryRoot, source.headRef);
       return base && head ? `branch-working-tree:${source.ref}:${base}:${head}` : null;
     }
 
-    const head = resolveCommitRef(repositoryRoot, 'HEAD');
-    const target = resolveCommitRef(repositoryRoot, source.ref);
-    const nextBase = target && head ? resolveMergeBase(repositoryRoot, target, head) : null;
+    const head = resolveCommitId(repositoryRoot, currentCheckoutRef(repositoryRoot));
+    const target = resolveCommitId(repositoryRoot, source.ref);
+    const nextBase = target && head ? resolveComparisonBase(repositoryRoot, target, head) : null;
     return nextBase && head ? `branch-working-tree:${source.ref}:${nextBase}:${head}` : null;
   }
 
@@ -194,8 +166,8 @@ const getWindowIdentity = (repositoryPath, launchOptions = {}) => {
     launchOptions.walkthrough &&
     !launchOptions.walkthroughFile &&
     !launchOptions.source &&
-    !hasWorkingTreeChanges(repositoryRoot)
-      ? resolveCommitRef(repositoryRoot, 'HEAD')
+    !hasWorkingCopyChanges(repositoryRoot)
+      ? resolveCommitId(repositoryRoot, currentCheckoutRef(repositoryRoot))
       : null;
   const sourceKey = implicitWalkthroughHead
     ? `commit:${implicitWalkthroughHead}`

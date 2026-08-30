@@ -7,6 +7,7 @@ import { expect, test } from 'vite-plus/test';
 import type { NarrativeNavigation } from '../app/components/walkthrough/useNarrativeNavigation.ts';
 import { useNarrativeNavigation } from '../app/components/walkthrough/useNarrativeNavigation.ts';
 import type { NarrativeWalkthrough, WalkthroughStop } from '../types.ts';
+import { gitRepositoryInfo } from './helpers/fixtures.ts';
 import { renderReact } from './helpers/react.tsx';
 
 const stop = (id: string): WalkthroughStop => ({
@@ -34,11 +35,11 @@ const walkthrough: NarrativeWalkthrough = {
   focus: 'Focus',
   generatedAt: '2026-06-08T00:00:00.000Z',
   kind: 'narrative',
-  repo: { branch: 'main', root: '/repo' },
+  repo: { info: gitRepositoryInfo(), root: '/repo' },
   source: { type: 'working-tree' },
   support: [],
   title: 'Walkthrough',
-  version: 4,
+  version: 5,
 };
 
 function NavigationHarness({

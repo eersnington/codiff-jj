@@ -1,4 +1,9 @@
-import type { ChangedFile } from '../../types.ts';
+import type { ChangedFile, RepositoryInfo } from '../../types.ts';
+
+export const gitRepositoryInfo = (branch: string | null = 'main'): RepositoryInfo => ({
+  branch,
+  vcs: 'git',
+});
 
 type ChangedFileOptions = {
   fingerprint?: string;

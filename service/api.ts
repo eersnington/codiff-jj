@@ -127,12 +127,28 @@ const walkthroughManifestSchema = z
     repository: z
       .object({
         generalComments: z.array(generalCommentThreadSchema).max(1000).optional(),
+        info: z
+          .union([
+            z
+              .object({
+                branch: boundedString(1024).nullable().optional(),
+                vcs: z.literal('git'),
+              })
+              .passthrough(),
+            z
+              .object({
+                bookmarks: z.array(boundedString(1024)).optional(),
+                vcs: z.literal('jj'),
+              })
+              .passthrough(),
+          ])
+          .optional(),
         source: walkthroughSourceSchema.optional(),
         title: boundedString(300).optional(),
       })
       .passthrough(),
     reviewComments: z.array(reviewCommentSchema).max(10_000).optional(),
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     walkthrough: z
       .object({
         summary: boundedString(128 * 1024).optional(),
@@ -318,6 +334,18 @@ const cleanTitleValue = (value: unknown) =>
 const cleanIdentityValue = (value: unknown, maxLength: number) =>
   typeof value === 'string' ? value.trim().slice(0, maxLength) || null : null;
 
+const getWalkthroughShareBranch = (snapshot: WalkthroughManifest) => {
+  const info = snapshot.repository.info;
+  if (info?.vcs === 'git') {
+    return typeof info.branch === 'string' ? info.branch : null;
+  }
+  if (info?.vcs === 'jj' && Array.isArray(info.bookmarks)) {
+    const bookmark = info.bookmarks.find((value) => typeof value === 'string');
+    return typeof bookmark === 'string' ? bookmark : null;
+  }
+  return typeof snapshot.branch === 'string' ? snapshot.branch : null;
+};
+
 const sanitizeWalkthrough = (snapshot: WalkthroughManifest) => {
   const repository = snapshot.repository;
   const source = repository.source;
@@ -340,7 +368,7 @@ export const parseShareUpload = (body: string): ParsedUpload => {
   const payload: unknown = JSON.parse(body);
   const record = isRecord(payload) ? payload : null;
   const snapshotValue = record?.snapshot ?? payload;
-  if (!isRecord(snapshotValue) || snapshotValue.version !== 1) {
+  if (!isRecord(snapshotValue) || (snapshotValue.version !== 1 && snapshotValue.version !== 2)) {
     throw new Error('unsupported-manifest');
   }
 
@@ -607,7 +635,7 @@ const uploadShare = async (request: Request, env: SharingEnv, options: SharingAp
       const walkthroughId = crypto.randomUUID();
       await db.batch([
         db.insert(walkthrough).values({
-          branch: upload.snapshot.branch ?? null,
+          branch: getWalkthroughShareBranch(upload.snapshot),
           byteSize: textEncoder.encode(canonical).byteLength,
           codiffVersion: upload.snapshot.codiffVersion,
           description: upload.snapshot.walkthrough.summary ?? null,

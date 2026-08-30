@@ -457,7 +457,13 @@ const normalizeNarrativeWalkthrough = (input, files, facts = {}, hunkIdByAlias =
   const support = normalizeAuthoredSupport(input, index, coveredHunkIds, itemIds);
   addUnreferencedSupport(support, index, coveredHunkIds, itemIds);
 
-  const branch = typeof facts.branch === 'string' || facts.branch === null ? facts.branch : null;
+  const repository =
+    facts.repository && typeof facts.repository === 'object'
+      ? facts.repository
+      : {
+          branch: typeof facts.branch === 'string' || facts.branch === null ? facts.branch : null,
+          vcs: 'git',
+        };
   const source =
     facts.source && typeof facts.source === 'object' ? facts.source : { type: 'working-tree' };
 
@@ -469,13 +475,13 @@ const normalizeNarrativeWalkthrough = (input, files, facts = {}, hunkIdByAlias =
     generatedAt: normalizeGeneratedAt(facts.generatedAt),
     kind: 'narrative',
     repo: {
-      branch,
+      info: repository,
       root: oneLine(facts.root),
     },
     source,
     support,
     title: cleanText(input.title, 'Walkthrough'),
-    version: 4,
+    version: 5,
   };
 
   result.meta = `${stopCount} stops · ${chapters.length} chapters`;
@@ -599,7 +605,7 @@ const buildPromptInput = (state) => {
   let remainingPatchBudget = patchBudget.total;
 
   const input = {
-    branch: state.branch,
+    repository: state.repository,
     files: state.files.map((file) => {
       const generated = isGeneratedWalkthroughFile(file);
       return {
@@ -920,8 +926,8 @@ const readNarrativeWalkthrough = async (
       state.files,
       {
         agent: agent.id,
-        branch: state.branch,
         generatedAt: state.generatedAt,
+        repository: state.repository,
         root: state.root,
         source: state.source,
       },

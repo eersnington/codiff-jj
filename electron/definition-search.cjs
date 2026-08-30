@@ -292,7 +292,7 @@ const resolveSearchRevision = async (request, repoPath) => {
     return side === 'additions'
       ? { cached: true, revision: null }
       : { cached: false, revision: 'HEAD' };
-  if (kind === 'unstaged')
+  if (kind === 'unstaged' || kind === 'working-copy')
     return side === 'additions'
       ? { cached: false, revision: null, untracked: true }
       : { cached: true, revision: null };

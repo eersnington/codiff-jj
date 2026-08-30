@@ -23,7 +23,7 @@ import type {
   ReviewSource,
   WalkthroughProgressEvent,
 } from '../types.ts';
-import { createChangedFile } from './helpers/fixtures.ts';
+import { createChangedFile, gitRepositoryInfo } from './helpers/fixtures.ts';
 import { renderReact, setInputValue, waitFor } from './helpers/react.tsx';
 
 const reactActEnvironment = globalThis as typeof globalThis & {
@@ -57,10 +57,10 @@ beforeEach(() => {
 });
 
 const repositoryState = {
-  branch: 'main',
   files: [],
   generatedAt: 1,
   launchPath: '/repo',
+  repository: gitRepositoryInfo(),
   root: '/repo',
   source: { type: 'working-tree' },
 } satisfies RepositoryState;
@@ -123,7 +123,7 @@ const createCodiffMock = (overrides: Partial<Window['codiff']> = {}): Window['co
   })),
   completePlan: vi.fn(async () => {}),
   createWalkthroughCommit: vi.fn(async () => ({
-    hash: '0000000000000000000000000000000000000000',
+    revision: '0000000000000000000000000000000000000000',
     status: 'committed' as const,
   })),
   decreaseCodeFontSize: vi.fn(async () => {}),
@@ -315,11 +315,11 @@ const createNarrativeWalkthroughFixture = (
     focus: 'Focus.',
     generatedAt: '2026-06-07T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: gitRepositoryInfo(), root: '/repo' },
     source: { type: 'working-tree' },
     support: [],
     title: 'Narrative',
-    version: 4,
+    version: 5,
   }) satisfies NarrativeWalkthrough;
 
 const dispatchModK = () => {
@@ -825,12 +825,12 @@ test('branch history keeps branch diff available after selecting uncommitted cha
   } satisfies ReviewSource;
   const branchState = {
     ...repositoryState,
-    branch: 'fork',
+    repository: gitRepositoryInfo('fork'),
     source: branchSource,
   } satisfies RepositoryState;
   const workingTreeState = {
     ...repositoryState,
-    branch: 'fork',
+    repository: gitRepositoryInfo('fork'),
     source: { type: 'working-tree' },
   } satisfies RepositoryState;
   const getRepositoryState = vi.fn(async (requestedSource?: ReviewSource) =>
@@ -903,7 +903,7 @@ test('repository reload restores branch diff scope after selecting uncommitted c
   } satisfies ReviewSource;
   const workingTreeState = {
     ...repositoryState,
-    branch: 'fork',
+    repository: gitRepositoryInfo('fork'),
     source: { type: 'working-tree' },
   } satisfies RepositoryState;
   const getRepositoryHistory = vi.fn(async () => ({
@@ -1655,11 +1655,11 @@ test('narrative walkthrough stops show pull request descriptions once', async ()
     focus: 'Focus.',
     generatedAt: '2026-06-07T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: gitRepositoryInfo(), root: '/repo' },
     source,
     support: [],
     title: 'Narrative',
-    version: 4,
+    version: 5,
   } satisfies NarrativeWalkthrough;
 
   window.codiff = createCodiffMock({
@@ -1770,11 +1770,11 @@ test('narrative walkthrough stops do not repeat commit details', async () => {
     focus: 'Focus.',
     generatedAt: '2026-06-07T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: gitRepositoryInfo(), root: '/repo' },
     source,
     support: [],
     title: 'Narrative',
-    version: 4,
+    version: 5,
   } satisfies NarrativeWalkthrough;
 
   window.codiff = createCodiffMock({
@@ -1862,11 +1862,11 @@ test('a walkthrough file loads even without the walkthrough launch flag', async 
     focus: 'Focus.',
     generatedAt: '2026-06-07T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: gitRepositoryInfo(), root: '/repo' },
     source,
     support: [],
     title: 'Narrative',
-    version: 4,
+    version: 5,
   } satisfies NarrativeWalkthrough;
 
   const getNarrativeWalkthrough = vi.fn(async () => ({
@@ -2918,8 +2918,8 @@ test('refreshing all changes re-resolves the branch snapshot', async () => {
   const addedFile = createChangedFile('src/added.ts', { kind: 'commit' });
   const initialState = {
     ...repositoryState,
-    branch: 'feature',
     files: [initialFile],
+    repository: gitRepositoryInfo('feature'),
     source: initialSource,
   } satisfies RepositoryState;
   const refreshedState = {

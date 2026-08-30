@@ -9,7 +9,7 @@ import { useAppKeyboardShortcuts } from '../app/hooks/useAppKeyboardShortcuts.ts
 import { createDefaultConfig, defaultKeymap } from '../config/defaults.ts';
 import { createReviewCommandTarget } from '../lib/review-command-target.ts';
 import type { RepositoryState } from '../types.ts';
-import { createChangedFile } from './helpers/fixtures.ts';
+import { createChangedFile, gitRepositoryInfo } from './helpers/fixtures.ts';
 import { renderReact } from './helpers/react.tsx';
 
 type AppCommandsOptions = Parameters<typeof useAppCommands>[0];
@@ -51,10 +51,10 @@ test('app commands register the complete command set and delegate dynamic action
   };
   const stateRef = {
     current: {
-      branch: 'main',
       files: [file],
       generatedAt: 1,
       launchPath: '/repo',
+      repository: gitRepositoryInfo(),
       root: '/repo',
       source,
     } satisfies RepositoryState,

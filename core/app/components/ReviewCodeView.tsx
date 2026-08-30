@@ -102,6 +102,7 @@ import {
   updateStickyHeaderState,
 } from '../../lib/review-comments.ts';
 import { getReviewIdentity, isReviewIdentityViewed } from '../../lib/review-identity.ts';
+import { isLiveReviewSource, isWorkingCopySectionKind } from '../../lib/review-sections.ts';
 import { applySearchHighlights } from '../../lib/search-highlights.ts';
 import { getSourceKey } from '../../lib/source.ts';
 import type {
@@ -154,14 +155,14 @@ const preloadMarkdownEditor = () => {
 const MarkdownEditor = lazy(loadMarkdownEditor);
 
 const isEditableWorkingTreeSection = (
-  sourceType: ReviewSource['type'],
+  source: ReviewSource,
   file: ChangedFile,
   section: DiffSection,
 ) =>
-  (sourceType === 'working-tree' || sourceType === 'branch-working-tree') &&
+  isLiveReviewSource(source) &&
   file.status !== 'deleted' &&
   file.sections.at(-1)?.id === section.id &&
-  (section.kind === 'staged' || section.kind === 'unstaged');
+  isWorkingCopySectionKind(section.kind);
 
 function CopyFilePathButton({ path }: { path: string }) {
   const [copied, markCopied] = useCopiedState(1600);
@@ -2636,7 +2637,7 @@ export function ReviewCodeView({
         const section = file.sections.at(-1);
         return section &&
           isMarkdownFilePath(file.path) &&
-          isEditableWorkingTreeSection(source.type, file, section)
+          isEditableWorkingTreeSection(source, file, section)
           ? [section.id]
           : [];
       })
@@ -2854,9 +2855,7 @@ export function ReviewCodeView({
           !isReadOnly && onLoadImageContent != null && canRenderImagePreview(file.path, section);
         const canRenderMarkdown = markdownPreview != null;
         const canEditMarkdown =
-          canRenderMarkdown &&
-          !isReadOnly &&
-          isEditableWorkingTreeSection(source.type, file, section);
+          canRenderMarkdown && !isReadOnly && isEditableWorkingTreeSection(source, file, section);
         const isMarkdownPreview = canRenderMarkdown && markdownPreviewSections.has(section.id);
         const isSelected = block.fileSelected ?? block.selected ?? selectedPath === file.path;
         const reviewVersionPrefix = `${itemVersionByKey[reviewKey] ?? 0}:${block.id}:${
@@ -3073,7 +3072,7 @@ export function ReviewCodeView({
     reviewBlocks,
     selectedPath,
     showWhitespace,
-    source.type,
+    source,
     viewed,
     reviewIdentityByPath,
     walkthroughNotes,
@@ -3552,7 +3551,7 @@ export function ReviewCodeView({
       clearCommentLineHighlight();
       if (
         markdownPreviewSections.has(section.id) &&
-        isEditableWorkingTreeSection(source.type, file, section)
+        isEditableWorkingTreeSection(source, file, section)
       ) {
         if (refreshingMarkdownSectionsRef.current.has(section.id)) {
           return;
@@ -3580,7 +3579,7 @@ export function ReviewCodeView({
         return next;
       });
     },
-    [clearCommentLineHighlight, markdownPreviewSections, onRefreshMarkdown, source.type],
+    [clearCommentLineHighlight, markdownPreviewSections, onRefreshMarkdown, source],
   );
 
   const workerPoolOptions = useMemo(

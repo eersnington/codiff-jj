@@ -64,11 +64,11 @@ const sampleWalkthrough = () =>
     focus: 'Walk through the change.',
     generatedAt: '2026-01-01T00:00:00.000Z',
     kind: 'narrative',
-    repo: { branch: 'main', root: '/repo' },
+    repo: { info: { branch: 'main', vcs: 'git' }, root: '/repo' },
     source: { type: 'working-tree' },
     support: [],
     title: 'Walkthrough',
-    version: 4,
+    version: 5,
   }) as never;
 
 test('round-trips an exact cache entry', () => {

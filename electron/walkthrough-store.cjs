@@ -50,7 +50,7 @@ const isNarrativeWalkthrough = (value) => {
     typeof walkthrough === 'object' &&
     ['claude', 'codex', 'opencode', 'pi'].includes(walkthrough.agent) &&
     walkthrough.kind === 'narrative' &&
-    walkthrough.version === 4 &&
+    (walkthrough.version === 4 || walkthrough.version === 5) &&
     typeof walkthrough.focus === 'string' &&
     typeof walkthrough.generatedAt === 'string' &&
     typeof walkthrough.title === 'string' &&
@@ -75,6 +75,24 @@ const isNarrativeWalkthrough = (value) => {
     Array.isArray(walkthrough.support) &&
     walkthrough.support.every(isHunkGroup)
   );
+};
+
+/** @param {any} walkthrough */
+const normalizeStoredWalkthrough = (walkthrough) => {
+  if (walkthrough.version === 5) {
+    return walkthrough;
+  }
+  return {
+    ...walkthrough,
+    repo: {
+      info: walkthrough.repo.info ?? {
+        branch: walkthrough.repo.branch ?? null,
+        vcs: 'git',
+      },
+      root: walkthrough.repo.root,
+    },
+    version: 5,
+  };
 };
 
 /**
@@ -102,7 +120,7 @@ const readStoredWalkthrough = (cacheKey) => {
     ) {
       return null;
     }
-    return record.walkthrough;
+    return normalizeStoredWalkthrough(record.walkthrough);
   } catch {
     return null;
   }

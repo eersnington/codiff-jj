@@ -32,6 +32,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: true
           run-install: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install jj
+        run: cargo install --locked jj-cli
       - run: |
           vpr build
       - run: |

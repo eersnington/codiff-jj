@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test } from 'vite-plus/test';
 import { getGitTestEnvironment } from '../../core/__tests__/helpers/git.ts';
+import { createJjTestRepository } from '../../core/__tests__/helpers/jj.ts';
 import {
   createTemporaryDirectory,
   createTemporaryEnvironment,
@@ -270,6 +271,29 @@ test('parses hex-like refs as commits before branches', async () => {
   expect(readCommandLine(['codiff', '--branch', shortHash]).launchOptions.source).toEqual({
     ref: shortHash,
     type: 'branch-working-tree',
+  });
+});
+
+test('parses Jujutsu bookmarks as branch sources', async () => {
+  await using repo = await createJjTestRepository();
+  await execFileAsync(
+    'jj',
+    ['-R', repo.path, '--no-pager', 'bookmark', 'create', 'feature', '-r', '@'],
+    { env: getGitTestEnvironment() },
+  );
+  await using _cwd = createTemporaryWorkingDirectory(repo.path);
+
+  expect(readCommandLine(['codiff', 'feature'])).toEqual({
+    launchOptions: {
+      repositoryPathProvided: false,
+      source: {
+        ref: 'feature',
+        type: 'branch-working-tree',
+      },
+      walkthrough: false,
+    },
+    pullRequestNumber: null,
+    repositoryPath: null,
   });
 });
 

@@ -5,6 +5,11 @@ const { existsSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { parseArgs } = require('node:util');
 const { readWalkthroughContext } = require('../walkthrough-context.cjs');
+const {
+  isRevision,
+  isVersionedRepository,
+  resolveSourceCandidate,
+} = require('../repository-source.cjs');
 const { parseReviewUrl, resolveReviewUrl } = require('../review-source.cjs');
 
 /**
@@ -40,40 +45,9 @@ const parseRangeArgument = (arg) => {
   return match ? { base: match[1], head: match[3], symmetric: match[2] === '...' } : null;
 };
 
-/** @param {string} repositoryPath @param {ReadonlyArray<string>} args */
-const gitSucceeds = (repositoryPath, args) => {
-  try {
-    execFileSync('git', ['-C', repositoryPath, ...args], {
-      stdio: ['ignore', 'ignore', 'ignore'],
-    });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/** @param {string} repositoryPath */
-const isGitRepository = (repositoryPath) =>
-  gitSucceeds(repositoryPath, ['rev-parse', '--show-toplevel']);
-
 /** @param {string} repositoryPath @param {string} ref */
-const isBranchRef = (repositoryPath, ref) =>
-  gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]) ||
-  gitSucceeds(repositoryPath, ['show-ref', '--verify', '--quiet', `refs/remotes/${ref}`]);
-
-/** @param {string} repositoryPath @param {string} ref */
-const isCommitRef = (repositoryPath, ref) =>
-  gitSucceeds(repositoryPath, ['rev-parse', '--verify', `${ref}^{commit}`]);
-
-/** @param {string} repositoryPath @param {string} ref */
-const resolveSourceCandidate = (repositoryPath, ref) =>
-  isCommitRefArgument(ref) && isCommitRef(repositoryPath, ref)
-    ? { commitRef: ref }
-    : isBranchRef(repositoryPath, ref)
-      ? { branchRef: ref }
-      : isCommitRef(repositoryPath, ref) || isCommitRefArgument(ref)
-        ? { commitRef: ref }
-        : null;
+const resolveNamedSource = (repositoryPath, ref) =>
+  resolveSourceCandidate(repositoryPath, ref, isCommitRefArgument(ref));
 
 /** @param {string} arg */
 const parsePullRequestNumberArgument = (arg) => {
@@ -217,23 +191,20 @@ const parseCommandLineArguments = (commandLine = process.argv) => {
   if (rangeCandidate) {
     const rangeRepo = resolve(repositoryPath || process.cwd());
     range =
-      isCommitRef(rangeRepo, rangeCandidate.base) && isCommitRef(rangeRepo, rangeCandidate.head)
+      isRevision(rangeRepo, rangeCandidate.base) && isRevision(rangeRepo, rangeCandidate.head)
         ? rangeCandidate
         : null;
   }
 
   if (!range && !commitRef && !branchRef && sourceCandidate) {
-    const source = resolveSourceCandidate(
-      resolve(repositoryPath || process.cwd()),
-      sourceCandidate,
-    );
+    const source = resolveNamedSource(resolve(repositoryPath || process.cwd()), sourceCandidate);
     if (source?.branchRef) {
       branchRef = source.branchRef;
     } else if (source?.commitRef) {
       commitRef = source.commitRef;
     } else if (repositoryPath == null && existsSync(resolve(sourceCandidate))) {
       repositoryPath = sourceCandidate;
-    } else if (isGitRepository(resolve(repositoryPath || process.cwd()))) {
+    } else if (isVersionedRepository(resolve(repositoryPath || process.cwd()))) {
       branchRef = sourceCandidate;
     } else if (repositoryPath == null) {
       repositoryPath = sourceCandidate;
