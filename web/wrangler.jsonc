@@ -1,17 +1,18 @@
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "codiff",
+  "account_id": "24de2a617a6739ba3ae9eea152a254a5",
   "compatibility_date": "2026-07-16",
   "workers_dev": false,
   "vars": {
-    "PUBLIC_ORIGIN": "https://codiff.dev",
+    "PUBLIC_ORIGIN": "https://codiff.eers.dev",
   },
   "secrets": {
     "required": ["AUTH_GITHUB_CLIENT_ID", "AUTH_GITHUB_CLIENT_SECRET", "BETTER_AUTH_SECRET"],
   },
   "routes": [
     {
-      "pattern": "codiff.dev",
+      "pattern": "codiff.eers.dev",
       "custom_domain": true,
     },
   ],
@@ -39,6 +40,7 @@
     {
       "binding": "DB",
       "database_name": "codiff-public",
+      "database_id": "daf8235b-87c7-47b9-80d3-a5c6205ca3c7",
       "migrations_dir": "./db/migrations",
     },
   ],

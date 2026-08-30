@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: production
-      url: https://codiff.dev
+      url: https://codiff.eers.dev
 
     steps:
       - uses: actions/checkout@v4
