@@ -3649,6 +3649,106 @@ test('walkthrough progress events replace the loading line without exposing agen
   });
 });
 
+test('jj stack history lists the working copy, empty members, and trunk', async () => {
+  window.codiff = createCodiffMock({
+    getRepositoryHistory: vi.fn(async () => ({
+      entries: [
+        {
+          author: 'Sree',
+          committedAt: Date.now(),
+          parents: [],
+          ref: 'tzkwmrxw',
+          scope: 'stack' as const,
+          stackRole: 'working-copy' as const,
+          subject: 'docs(rivetkit): document telemetry architecture',
+        },
+        {
+          author: 'Sree',
+          committedAt: Date.now(),
+          parents: [],
+          ref: 'lnovwyus',
+          scope: 'stack' as const,
+          stackRole: 'commit' as const,
+          subject: 'feat(rivetkit): correlate durable invocations',
+        },
+        {
+          author: 'Nathan',
+          committedAt: Date.now(),
+          parents: [],
+          ref: 'b5cac54a',
+          scope: 'stack' as const,
+          stackRole: 'trunk' as const,
+          subject: 'fix(rivetkit): tune legacy runner thresholds in development',
+        },
+        {
+          author: 'Nathan',
+          committedAt: Date.now(),
+          parents: [],
+          ref: '96de4570',
+          subject: 'fix(release): publish engine checksum manifest',
+        },
+      ],
+      root: '/repo',
+      stackDiff: { additions: 10, deletions: 1, files: 3 },
+      stackRange: { base: 'b5cac54a', head: 'tzkwmrxw' },
+      workingCopyDiff: { additions: 2, deletions: 0, files: 1 },
+    })),
+    getRepositoryState: vi.fn(async () => ({
+      ...repositoryState,
+      repository: {
+        bookmarks: [],
+        changeId: 'tzkwmrxw',
+        commitId: '4149933d',
+        vcs: 'jj' as const,
+      },
+    })),
+  });
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  let root: Root | null = null;
+  const historySubjects = () =>
+    Array.from(container.querySelectorAll('.history-entry-subject')).map(
+      (element) => element.textContent,
+    );
+  const historyMarkers = () =>
+    Array.from(container.querySelectorAll('.history-entry-marker')).map(
+      (element) => element.textContent,
+    );
+
+  await using _resource = {
+    async [Symbol.asyncDispose]() {
+      if (root) {
+        await act(async () => root?.unmount());
+      }
+      container.remove();
+    },
+  };
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<App />);
+  });
+  await waitFor(() => {
+    expect(container.querySelector('.loading')).toBeNull();
+  });
+  await act(async () => {
+    Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('History'))
+      ?.click();
+  });
+  await waitFor(() => {
+    expect(historySubjects()).toEqual([
+      'Stack vs trunk',
+      'docs(rivetkit): document telemetry architecture',
+      'feat(rivetkit): correlate durable invocations',
+      'fix(rivetkit): tune legacy runner thresholds in development',
+      'fix(release): publish engine checksum manifest',
+    ]);
+    expect(historyMarkers()).toEqual(['@', '○', '◆']);
+    expect(container.textContent).not.toContain('Uncommitted changes');
+  });
+});
+
 test('history filter matches commits by author name', async () => {
   window.codiff = createCodiffMock({
     getRepositoryHistory: vi.fn(async () => ({

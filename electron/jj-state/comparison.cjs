@@ -411,7 +411,8 @@ const readJjDiffStat = async (repoRoot, args) => {
 };
 
 const DEFAULT_JJ_LOG_REVSET = 'present(@) | ancestors(immutable_heads().., 2) | trunk()';
-const JJ_STACK_REVSET = 'trunk()..(@::) & ~::(immutable_heads() | root()) & ~empty()';
+// Keep empty commits: forklift lists them as stack members.
+const JJ_STACK_REVSET = 'trunk()..(@::) & ~::(immutable_heads() | root())';
 
 /** @param {string} repoRoot */
 const readJjWorkingCopyHistoryRevset = async (repoRoot) => {
@@ -424,21 +425,23 @@ const readJjWorkingCopyHistoryRevset = async (repoRoot) => {
   } catch {
     // Keep the default `jj log` window.
   }
-  return `((${logRevset}) | ancestors(@-) | working_copies() | (${JJ_STACK_REVSET})) ~ @`;
+  return `((${logRevset}) | ancestors(@-) | working_copies()) ~ @`;
 };
 
-/** @param {string} repoRoot @param {string} revset */
-const listJjCommitIds = async (repoRoot, revset) => {
+/**
+ * @param {string} repoRoot
+ * @param {string} revset
+ * @param {{limit?: number}} [options]
+ */
+const readJjLogEntries = async (repoRoot, revset, options = {}) => {
   try {
-    const raw = await jj(repoRoot, ['log', '-r', revset, '--no-graph', '-T', 'commit_id ++ "\\n"']);
-    return new Set(
-      raw
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean),
-    );
+    const args = ['log', '-r', revset, '--no-graph', '-T', `${HISTORY_TEMPLATE} ++ "\\n"`];
+    if (options.limit != null) {
+      args.push('--limit', String(options.limit));
+    }
+    return parseJjHistory(await jj(repoRoot, args));
   } catch {
-    return new Set();
+    return [];
   }
 };
 
@@ -461,21 +464,65 @@ const readJjStackRange = async (repoRoot) => {
 
 /**
  * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} entries
- * @param {Set<string>} stackIds
+ * @param {Map<string, import('../../core/types.ts').HistoryEntry['stackRole']>} stackByCommit
  * @param {Map<string, string>} workspaceByCommit
  */
-const annotateJjHistory = (entries, stackIds, workspaceByCommit) =>
+const annotateJjHistory = (entries, stackByCommit, workspaceByCommit) =>
   entries.map((entry) => {
     const { commitId, ...historyEntry } = entry;
     const workspace = commitId ? workspaceByCommit.get(commitId) : undefined;
+    const stackRole = commitId ? stackByCommit.get(commitId) : undefined;
     return {
       ...historyEntry,
       ...(workspace ? { scope: /** @type {const} */ ('workspace'), workspace } : {}),
-      ...(!workspace && commitId && stackIds.has(commitId)
-        ? { scope: /** @type {const} */ ('stack') }
-        : {}),
+      ...(!workspace && stackRole ? { scope: /** @type {const} */ ('stack'), stackRole } : {}),
     };
   });
+
+/**
+ * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} stackEntries
+ * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} trunkEntries
+ * @param {{base: string; head: string} | null} stackRange
+ */
+const createJjStackByCommit = (stackEntries, trunkEntries, stackRange) => {
+  /** @type {Map<string, import('../../core/types.ts').HistoryEntry['stackRole']>} */
+  const stackByCommit = new Map();
+  for (const entry of stackEntries) {
+    if (!entry.commitId) {
+      continue;
+    }
+    stackByCommit.set(
+      entry.commitId,
+      entry.commitId === stackRange?.head ? 'working-copy' : 'commit',
+    );
+  }
+  if (stackByCommit.size === 0) {
+    return stackByCommit;
+  }
+  for (const entry of trunkEntries) {
+    if (entry.commitId && !stackByCommit.has(entry.commitId)) {
+      stackByCommit.set(entry.commitId, 'trunk');
+    }
+  }
+  return stackByCommit;
+};
+
+/**
+ * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} primary
+ * @param {Array<import('../../core/types.ts').HistoryEntry & {commitId?: string}>} extra
+ */
+const mergeJjHistoryEntries = (primary, extra) => {
+  const seen = new Set(primary.map((entry) => entry.commitId).filter(Boolean));
+  const merged = [...primary];
+  for (const entry of extra) {
+    if (!entry.commitId || seen.has(entry.commitId)) {
+      continue;
+    }
+    seen.add(entry.commitId);
+    merged.push(entry);
+  }
+  return merged;
+};
 
 /** @param {string} launchPath @param {number} [limit] @param {ReviewSource} [source] */
 const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
@@ -492,20 +539,13 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
       : `${source.ref}..@`
     : await readJjWorkingCopyHistoryRevset(repoRoot);
   try {
-    const [raw, stackIds, stackRange] = await Promise.all([
-      jj(repoRoot, [
-        'log',
-        '-r',
-        revset,
-        '--no-graph',
-        '--limit',
-        String(limit),
-        '-T',
-        `${HISTORY_TEMPLATE} ++ "\\n"`,
-      ]),
-      comparisonSource ? Promise.resolve(new Set()) : listJjCommitIds(repoRoot, JJ_STACK_REVSET),
+    const [logEntries, stackEntries, trunkEntries, stackRange] = await Promise.all([
+      readJjLogEntries(repoRoot, revset, { limit }),
+      comparisonSource ? Promise.resolve([]) : readJjLogEntries(repoRoot, JJ_STACK_REVSET),
+      comparisonSource ? Promise.resolve([]) : readJjLogEntries(repoRoot, 'trunk()', { limit: 1 }),
       comparisonSource ? Promise.resolve(null) : readJjStackRange(repoRoot),
     ]);
+    const stackByCommit = createJjStackByCommit(stackEntries, trunkEntries, stackRange);
     const [workingCopyDiff, stackDiff] = comparisonSource
       ? [undefined, undefined]
       : await Promise.all([
@@ -519,12 +559,16 @@ const listJjRepositoryHistory = async (launchPath, limit = 200, source) => {
         .filter((workspace) => !workspace.current)
         .map((workspace) => [workspace.commitId, workspace.name]),
     );
-    const entries = annotateJjHistory(parseJjHistory(raw), stackIds, workspaceByCommit);
+    const entries = annotateJjHistory(
+      mergeJjHistoryEntries([...stackEntries, ...trunkEntries], logEntries),
+      stackByCommit,
+      workspaceByCommit,
+    );
     return {
       entries,
       root: repoRoot,
       ...(stackDiff ? { stackDiff } : {}),
-      ...(stackIds.size > 0 && stackRange ? { stackRange } : {}),
+      ...(stackByCommit.size > 0 && stackRange ? { stackRange } : {}),
       ...(workingCopyDiff ? { workingCopyDiff } : {}),
     };
   } catch {

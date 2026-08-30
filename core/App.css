@@ -1472,10 +1472,18 @@ html[data-codiff-platform='darwin'] .sidebar {
 .history-entry-ref {
   align-self: center;
   color: var(--sidebar-ref);
+  display: inline-flex;
   font: 12px/1.35 var(--font-mono);
+  gap: 4px;
   justify-self: start;
   min-width: 0;
   white-space: nowrap;
+}
+
+.history-entry-marker {
+  color: var(--muted);
+  flex: none;
+  width: 0.75em;
 }
 
 .history-entry.with-metadata .history-entry-ref {

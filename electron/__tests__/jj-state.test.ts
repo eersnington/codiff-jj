@@ -29,6 +29,7 @@ const {
       diff?: { additions: number; deletions: number; files: number };
       ref: string;
       scope?: string;
+      stackRole?: 'commit' | 'trunk' | 'working-copy';
       subject: string;
       workspace?: string;
     }>;
@@ -165,15 +166,22 @@ test('lists the trunk stack and opens it as a range', async () => {
   await jj(repo.path, ['config', 'set', '--repo', 'revset-aliases."trunk()"', 'main']);
   await writeFile(join(repo.path, 'one.txt'), 'one\n');
   await jj(repo.path, ['commit', '-m', 'one']);
+  await jj(repo.path, ['describe', '-m', 'empty']);
+  await jj(repo.path, ['new']);
   await writeFile(join(repo.path, 'two.txt'), 'two\n');
   await jj(repo.path, ['commit', '-m', 'two']);
+  await jj(repo.path, ['describe', '-m', 'wip']);
 
   const history = await listRepositoryHistory(repo.path, 20);
-  const stackSubjects = history.entries
-    .filter((entry) => entry.scope === 'stack')
-    .map((entry) => entry.subject);
+  const stack = history.entries.filter((entry) => entry.scope === 'stack');
 
-  expect(stackSubjects).toEqual(['two', 'one']);
+  expect(stack.map((entry) => [entry.stackRole, entry.subject])).toEqual([
+    ['working-copy', 'wip'],
+    ['commit', 'two'],
+    ['commit', 'empty'],
+    ['commit', 'one'],
+    ['trunk', 'base'],
+  ]);
   expect(history.stackRange).toMatchObject({ base: expect.any(String), head: expect.any(String) });
   expect(history.stackDiff).toEqual({ additions: 2, deletions: 0, files: 2 });
   expect(history.entries.find((entry) => entry.subject === 'two')?.diff).toEqual({

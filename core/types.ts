@@ -203,6 +203,8 @@ export type HistoryEntry = {
   parents: ReadonlyArray<string>;
   ref: string;
   scope?: 'base' | 'pull-request' | 'stack' | 'workspace';
+  /** How a stack row relates to the working copy and trunk. */
+  stackRole?: 'commit' | 'trunk' | 'working-copy';
   subject: string;
   workspace?: string;
 };

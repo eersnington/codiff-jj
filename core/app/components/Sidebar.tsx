@@ -298,14 +298,25 @@ function HistorySidebar({
       committedAt: entry.committedAt,
       diff: entry.diff,
       gravatarUrl: entry.gravatarUrl,
-      key: `commit:${entry.ref}`,
+      key: entry.stackRole === 'working-copy' ? 'working-tree' : `commit:${entry.ref}`,
       kind: 'entry' as const,
+      marker:
+        entry.stackRole === 'working-copy'
+          ? '@'
+          : entry.stackRole === 'trunk'
+            ? '◆'
+            : entry.scope === 'stack'
+              ? '○'
+              : null,
       ref: entry.ref,
       scope: entry.scope,
-      source: { ref: entry.ref, type: 'commit' } satisfies ReviewSource,
+      source: (entry.stackRole === 'working-copy'
+        ? { type: 'working-tree' }
+        : { ref: entry.ref, type: 'commit' }) satisfies ReviewSource,
+      stackRole: entry.stackRole,
       subject: entry.workspace
         ? `${entry.workspace}: ${entry.subject || 'Working copy'}`
-        : entry.subject,
+        : entry.subject || (entry.stackRole === 'working-copy' ? 'Working copy' : ''),
       workspace: entry.workspace,
     }));
     const matchesQuery = (row: (typeof commitRows)[number]) =>
@@ -414,7 +425,14 @@ function HistorySidebar({
       ].filter((row): row is NonNullable<typeof row> => row != null);
     }
 
-    const stackRows = commitRows.filter((row) => row.scope === 'stack').filter(matchesQuery);
+    const stackMemberRows = commitRows
+      .filter((row) => row.scope === 'stack' && row.stackRole !== 'trunk')
+      .filter(matchesQuery);
+    const trunkRow = commitRows.find((row) => row.stackRole === 'trunk');
+    const stackRows = [
+      ...stackMemberRows,
+      trunkRow && matchesQuery(trunkRow) ? trunkRow : null,
+    ].filter((row): row is NonNullable<typeof row> => row != null);
     const workspaceRows = commitRows
       .filter((row) => row.scope === 'workspace')
       .filter(matchesQuery);
@@ -429,8 +447,12 @@ function HistorySidebar({
           type: 'range',
         } satisfies ReviewSource)
       : null;
+    const hasWorkingCopyStackRow = stackRows.some((row) => row.stackRole === 'working-copy');
+    const displayedStackRows = stackRows.map((row) =>
+      row.stackRole === 'working-copy' && workingCopyDiff ? { ...row, diff: workingCopyDiff } : row,
+    );
     return [
-      !normalizedQuery
+      !normalizedQuery && !hasWorkingCopyStackRow
         ? {
             author: null,
             committedAt: null,
@@ -438,6 +460,7 @@ function HistorySidebar({
             gravatarUrl: undefined,
             key: 'working-tree',
             kind: 'entry' as const,
+            marker: null,
             ref: '',
             source: { type: 'working-tree' } satisfies ReviewSource,
             subject: 'Uncommitted changes',
@@ -451,15 +474,16 @@ function HistorySidebar({
             gravatarUrl: undefined,
             key: getSourceKey(stackSource),
             kind: 'entry' as const,
+            marker: null,
             ref: 'stack',
             source: stackSource,
             subject: 'Stack vs trunk',
           }
         : null,
-      stackRows.length > 0
+      displayedStackRows.length > 0
         ? { key: 'history-section:stack', kind: 'section' as const, label: 'Stack' }
         : null,
-      ...stackRows,
+      ...displayedStackRows,
       workspaceRows.length > 0
         ? { key: 'history-section:workspaces', kind: 'section' as const, label: 'Workspaces' }
         : null,
@@ -513,14 +537,19 @@ function HistorySidebar({
             type="button"
           >
             <span className="history-entry-ref">
+              {'marker' in row && row.marker ? (
+                <span className="history-entry-marker">{row.marker}</span>
+              ) : null}
               {row.source.type === 'commit'
                 ? getShortRef(row.source.ref)
-                : row.source.type === 'pull-request' ||
-                    row.source.type === 'branch-diff' ||
-                    row.source.type === 'branch-working-tree' ||
-                    row.source.type === 'range'
-                  ? row.ref
-                  : 'local'}
+                : row.source.type === 'working-tree' && row.ref
+                  ? getShortRef(row.ref)
+                  : row.source.type === 'pull-request' ||
+                      row.source.type === 'branch-diff' ||
+                      row.source.type === 'branch-working-tree' ||
+                      row.source.type === 'range'
+                    ? row.ref
+                    : 'local'}
             </span>
             <span className="history-entry-subject">{row.subject}</span>
             {showMeta ? (
