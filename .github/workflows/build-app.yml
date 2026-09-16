@@ -3,7 +3,7 @@ name: build-app
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 permissions:
   contents: write
@@ -14,9 +14,11 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GH_REPO: eersnington/codiff-jj
 
 jobs:
   create-release:
+    if: github.repository == 'eersnington/codiff-jj'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
 

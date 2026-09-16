@@ -96,26 +96,26 @@ test('readUpdateState returns null when the file does not exist', async () => {
 
 test('readUpdateState returns null for corrupt JSON', async () => {
   await using directory = await createTemporaryDirectory('codiff-update-');
-  await writeFile(join(directory.path, 'update-state.json'), '{not valid json');
+  await writeFile(join(directory.path, 'update-state-codiff-jj.json'), '{not valid json');
   expect(readUpdateState(directory.path)).toBeNull();
 });
 
 test('readUpdateState returns null when fields are missing or invalid', async () => {
   await using directory = await createTemporaryDirectory('codiff-update-');
   await writeFile(
-    join(directory.path, 'update-state.json'),
+    join(directory.path, 'update-state-codiff-jj.json'),
     JSON.stringify({ lastCheckedAt: '2026-07-28T10:00:00.000Z' }),
   );
   expect(readUpdateState(directory.path)).toBeNull();
 
   await writeFile(
-    join(directory.path, 'update-state.json'),
+    join(directory.path, 'update-state-codiff-jj.json'),
     JSON.stringify({ ...validState, compatible: undefined }),
   );
   expect(readUpdateState(directory.path)).toBeNull();
 
   await writeFile(
-    join(directory.path, 'update-state.json'),
+    join(directory.path, 'update-state-codiff-jj.json'),
     JSON.stringify({ ...validState, lastCheckedAt: 'not a date' }),
   );
   expect(readUpdateState(directory.path)).toBeNull();
@@ -132,7 +132,7 @@ test('writeUpdateState round-trips and creates the directory', async () => {
 test('readUpdateState drops an invalid dismissedVersion but keeps the rest', async () => {
   await using directory = await createTemporaryDirectory('codiff-update-');
   await writeFile(
-    join(directory.path, 'update-state.json'),
+    join(directory.path, 'update-state-codiff-jj.json'),
     JSON.stringify({ ...validState, dismissedVersion: 42 }),
   );
   expect(readUpdateState(directory.path)).toEqual(validState);
@@ -182,17 +182,21 @@ test('getAvailableUpdate resurfaces after a dismissed version is superseded', ()
 });
 
 test('LATEST_RELEASE_URL points at the codiff repository', () => {
-  expect(LATEST_RELEASE_URL).toBe('https://api.github.com/repos/nkzw-tech/codiff/releases/latest');
+  expect(LATEST_RELEASE_URL).toBe(
+    'https://api.github.com/repos/eersnington/codiff-jj/releases/latest',
+  );
 });
 
 test('updateFeedUrl targets update.electronjs.org for the current install', () => {
   expect(updateFeedUrl('darwin', 'arm64', '1.9.2')).toBe(
-    'https://update.electronjs.org/nkzw-tech/codiff/darwin-arm64/1.9.2',
+    'https://update.electronjs.org/eersnington/codiff-jj/darwin-arm64/1.9.2',
   );
 });
 
 test('releasePageUrl links to the tagged release', () => {
-  expect(releasePageUrl('1.9.3')).toBe('https://github.com/nkzw-tech/codiff/releases/tag/v1.9.3');
+  expect(releasePageUrl('1.9.3')).toBe(
+    'https://github.com/eersnington/codiff-jj/releases/tag/v1.9.3',
+  );
 });
 
 test('fetchLatestRelease parses the release and sends a User-Agent', async () => {
@@ -205,7 +209,7 @@ test('fetchLatestRelease parses the release and sends a User-Agent', async () =>
         assets: [
           {
             browser_download_url:
-              'https://github.com/nkzw-tech/codiff/releases/download/v1.9.3/Codiff-darwin-arm64-1.9.3.zip',
+              'https://github.com/eersnington/codiff-jj/releases/download/v1.9.3/Codiff-darwin-arm64-1.9.3.zip',
             digest: 'sha256:4db4acfef44780957e2801700008c94399f57d84f7971a948a3e2851c1366175',
             name: 'Codiff-darwin-arm64-1.9.3.zip',
           },
@@ -224,7 +228,7 @@ test('fetchLatestRelease parses the release and sends a User-Agent', async () =>
     {
       digest: 'sha256:4db4acfef44780957e2801700008c94399f57d84f7971a948a3e2851c1366175',
       name: 'Codiff-darwin-arm64-1.9.3.zip',
-      url: 'https://github.com/nkzw-tech/codiff/releases/download/v1.9.3/Codiff-darwin-arm64-1.9.3.zip',
+      url: 'https://github.com/eersnington/codiff-jj/releases/download/v1.9.3/Codiff-darwin-arm64-1.9.3.zip',
     },
   ]);
   expect(userAgent).toBeTruthy();

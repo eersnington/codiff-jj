@@ -200,7 +200,7 @@ export default function App() {
             </p>
           </div>
           <Button asChild className="codiff-web-footer-github" size="sm" variant="outline">
-            <a href="https://github.com/nkzw-tech/codiff" rel="noreferrer" target="_blank">
+            <a href="https://github.com/eersnington/codiff-jj" rel="noreferrer" target="_blank">
               <GithubLogo aria-hidden size={18} weight="regular" />
               Star on GitHub
             </a>

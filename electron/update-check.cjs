@@ -4,7 +4,7 @@ const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs'
 const { homedir } = require('node:os');
 const { join } = require('node:path');
 
-const LATEST_RELEASE_URL = 'https://api.github.com/repos/nkzw-tech/codiff/releases/latest';
+const LATEST_RELEASE_URL = 'https://api.github.com/repos/eersnington/codiff-jj/releases/latest';
 const UPDATE_CHECK_INTERVAL_MS = 20 * 60 * 60 * 1000;
 const USER_AGENT = 'codiff-update-check';
 
@@ -94,7 +94,7 @@ const parseUpdateState = (raw) => {
  * @returns {UpdateState | null}
  */
 const readUpdateState = (configDir) => {
-  const filePath = join(configDir ?? getDefaultConfigDir(), 'update-state.json');
+  const filePath = join(configDir ?? getDefaultConfigDir(), 'update-state-codiff-jj.json');
 
   if (!existsSync(filePath)) {
     return null;
@@ -117,7 +117,7 @@ const writeUpdateState = (state, configDir) => {
     mkdirSync(dir, { recursive: true });
   }
 
-  writeFileSync(join(dir, 'update-state.json'), JSON.stringify(state, null, 2) + '\n');
+  writeFileSync(join(dir, 'update-state-codiff-jj.json'), JSON.stringify(state, null, 2) + '\n');
 };
 
 /**
@@ -203,13 +203,14 @@ const fetchLatestRelease = async (url) => {
  * @returns {string}
  */
 const updateFeedUrl = (platform, arch, version) =>
-  `https://update.electronjs.org/nkzw-tech/codiff/${platform}-${arch}/${version}`;
+  `https://update.electronjs.org/eersnington/codiff-jj/${platform}-${arch}/${version}`;
 
 /**
  * @param {string} version
  * @returns {string}
  */
-const releasePageUrl = (version) => `https://github.com/nkzw-tech/codiff/releases/tag/v${version}`;
+const releasePageUrl = (version) =>
+  `https://github.com/eersnington/codiff-jj/releases/tag/v${version}`;
 
 module.exports = {
   extractVersionFromTag,

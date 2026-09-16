@@ -27,7 +27,7 @@ const writeState = async (
 
 const writeStateContents = async (home: string, contents: string) => {
   await mkdir(join(home, '.codiff'), { recursive: true });
-  await writeFile(join(home, '.codiff', 'update-state.json'), contents);
+  await writeFile(join(home, '.codiff', 'update-state-codiff-jj.json'), contents);
 };
 
 const disableUpdateChecks = async (home: string) => {
@@ -59,6 +59,29 @@ test('prints the cached update notice on --version', async () => {
   expect(stdout).toContain('codiff v');
   expect(stderr).toContain('99.0.0');
   expect(stderr).toContain('codiff update');
+});
+
+test('ignores an upstream update notice while displaying a fork release notice', async () => {
+  await using home = await createTemporaryDirectory('codiff-app-home-');
+  await mkdir(join(home.path, '.codiff'), { recursive: true });
+  await writeFile(
+    join(home.path, '.codiff', 'update-state.json'),
+    JSON.stringify({
+      compatible: true,
+      lastCheckedAt: '2026-07-29T00:00:00.000Z',
+      latestVersion: '99.0.0',
+    }),
+  );
+
+  expect((await runVersion(home.path)).stderr).toBe('');
+
+  await writeState(home.path, {
+    lastCheckedAt: '2026-07-29T00:00:00.000Z',
+    latestVersion: '98.0.0',
+  });
+  const { stderr } = await runVersion(home.path);
+  expect(stderr).toContain('98.0.0');
+  expect(stderr).not.toContain('99.0.0');
 });
 
 test('prints no notice for a dismissed version', async () => {
@@ -133,7 +156,7 @@ test('stays silent when the state file is unreadable', async () => {
     lastCheckedAt: '2026-07-29T00:00:00.000Z',
     latestVersion: '99.0.0',
   });
-  const stateFile = join(home.path, '.codiff', 'update-state.json');
+  const stateFile = join(home.path, '.codiff', 'update-state-codiff-jj.json');
   await chmod(stateFile, 0o000);
 
   try {

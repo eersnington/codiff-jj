@@ -125,7 +125,7 @@ test('shows the aligned public guide and starts GitHub sign-in from the header',
   expect(footerCredit?.querySelector('.codiff-web-footer-brand')).not.toBeNull();
   expect(container.querySelector('.codiff-web-footer-tagline')).toBeNull();
   const githubLink = container.querySelector<HTMLAnchorElement>('.codiff-web-footer-github');
-  expect(githubLink?.href).toBe('https://github.com/nkzw-tech/codiff');
+  expect(githubLink?.href).toBe('https://github.com/eersnington/codiff-jj');
   expect(githubLink?.target).toBe('_blank');
   expect(githubLink?.textContent).toBe('Star on GitHub');
 

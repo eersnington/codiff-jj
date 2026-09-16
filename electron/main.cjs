@@ -1453,7 +1453,7 @@ ipcMain.handle('codiff:dismissUpdate', () =>
 ipcMain.handle('codiff:openReleasePage', () => {
   const version = updater?.getStatus().version;
   return shell.openExternal(
-    version ? releasePageUrl(version) : 'https://github.com/nkzw-tech/codiff/releases',
+    version ? releasePageUrl(version) : 'https://github.com/eersnington/codiff-jj/releases',
   );
 });
 

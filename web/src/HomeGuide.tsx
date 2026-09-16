@@ -54,9 +54,10 @@ export default function HomeGuide() {
         <div className="codiff-web-step">1</div>
         <div className="codiff-web-guide-content">
           <h2>Install Codiff</h2>
-          <pre className="codiff-web-command">
-            <code>brew install --cask nkzw-tech/tap/codiff</code>
-          </pre>
+          <p>
+            Download the app from{' '}
+            <a href="https://github.com/eersnington/codiff-jj/releases">GitHub Releases</a>.
+          </p>
         </div>
       </section>
 

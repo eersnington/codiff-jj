@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nkzw-tech/codiff.git"
+    "url": "https://github.com/eersnington/codiff-jj.git"
   },
   "bin": {
     "codiff": "./bin/codiff.js"

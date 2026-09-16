@@ -115,7 +115,10 @@ const writeState = async (
     latestVersion: string;
   },
 ) =>
-  writeFile(join(configDir, 'update-state.json'), JSON.stringify({ compatible: true, ...state }));
+  writeFile(
+    join(configDir, 'update-state-codiff-jj.json'),
+    JSON.stringify({ compatible: true, ...state }),
+  );
 
 const recentCheck = () => new Date().toISOString();
 
@@ -439,7 +442,7 @@ test('checkForUpdates fetches, persists state and reports an available update', 
   expect(notifications).toEqual([status]);
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { latestVersion: string };
   expect(persisted.latestVersion).toBe('1.9.3');
 });
@@ -499,7 +502,7 @@ test('checkForUpdates ignores a release without an installer for this platform',
     strategy: 'squirrel',
   });
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { compatible: boolean; latestVersion: string };
   expect(persisted).toMatchObject({ compatible: false, latestVersion: '1.9.3' });
 });
@@ -611,7 +614,7 @@ test('checkForUpdates swallows network failures and keeps the cached state', asy
   expect(log.length).toBe(1);
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { lastCheckedAt: string };
   expect(persisted.lastCheckedAt).toBe(previous.lastCheckedAt);
 });
@@ -694,7 +697,7 @@ test('dismissUpdate persists the dismissal and hides the update', async () => {
   expect(notifications).toEqual([{ currentVersion: '1.9.2', phase: 'idle', strategy: 'squirrel' }]);
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { dismissedVersion: string };
   expect(persisted.dismissedVersion).toBe('1.9.3');
 });
@@ -728,7 +731,7 @@ test('applyUpdate drives Squirrel through download and restart', async () => {
     version: '1.9.3',
   });
   expect(autoUpdater.feedURL).toEqual({
-    url: 'https://update.electronjs.org/nkzw-tech/codiff/darwin-arm64/1.9.2',
+    url: 'https://update.electronjs.org/eersnington/codiff-jj/darwin-arm64/1.9.2',
   });
   expect(autoUpdater.checkForUpdatesCalls).toBe(1);
 
@@ -868,7 +871,7 @@ test('applyUpdate opens the release page for manual installs', async () => {
 
   const status = await updater.applyUpdate();
 
-  expect(openedUrls).toEqual(['https://github.com/nkzw-tech/codiff/releases/tag/v1.9.3']);
+  expect(openedUrls).toEqual(['https://github.com/eersnington/codiff-jj/releases/tag/v1.9.3']);
   expect(status).toEqual({
     currentVersion: '1.9.2',
     phase: 'available',
@@ -1062,8 +1065,8 @@ test('applyLatest supersedes a pending manual hand-off', async () => {
   const [first, second] = await Promise.all([pending, latest]);
 
   expect(openedUrls).toEqual([
-    'https://github.com/nkzw-tech/codiff/releases/tag/v1.9.3',
-    'https://github.com/nkzw-tech/codiff/releases/tag/v1.9.4',
+    'https://github.com/eersnington/codiff-jj/releases/tag/v1.9.3',
+    'https://github.com/eersnington/codiff-jj/releases/tag/v1.9.4',
   ]);
   expect(first.phase).toBe('available');
   expect(second).toEqual({
@@ -1118,7 +1121,7 @@ test('a dismissal during a queued manual hand-off wins', async () => {
 
   const [first, second] = await Promise.all([pending, latest]);
 
-  expect(openedUrls).toEqual(['https://github.com/nkzw-tech/codiff/releases/tag/v1.9.3']);
+  expect(openedUrls).toEqual(['https://github.com/eersnington/codiff-jj/releases/tag/v1.9.3']);
   expect(first.phase).toBe('idle');
   expect(second.phase).toBe('idle');
   expect(updater.getStatus().phase).toBe('idle');
@@ -1174,8 +1177,8 @@ test('a fresh request after a dismissal does not share a dead hand-off', async (
   const [, , freshStatus] = await Promise.all([pending, invalidated, fresh]);
 
   expect(openedUrls).toEqual([
-    'https://github.com/nkzw-tech/codiff/releases/tag/v1.9.3',
-    'https://github.com/nkzw-tech/codiff/releases/tag/v1.9.4',
+    'https://github.com/eersnington/codiff-jj/releases/tag/v1.9.3',
+    'https://github.com/eersnington/codiff-jj/releases/tag/v1.9.4',
   ]);
   expect(freshStatus).toEqual({
     currentVersion: '1.9.2',
@@ -1539,7 +1542,7 @@ test('a dismissal during an in-flight check is not erased', async () => {
   expect(status).toEqual({ currentVersion: '1.9.2', phase: 'idle', strategy: 'squirrel' });
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { dismissedVersion?: string };
   expect(persisted.dismissedVersion).toBe('1.9.3');
 });
@@ -1577,7 +1580,7 @@ test('a forced check clears the dismissal and resurfaces the update', async () =
   });
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { dismissedVersion?: string };
   expect(persisted.dismissedVersion).toBeUndefined();
 });
@@ -1632,7 +1635,7 @@ test('concurrent checks run one at a time and the newest result wins', async () 
   });
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { latestVersion: string };
   expect(persisted.latestVersion).toBe('1.9.4');
 });
@@ -1669,7 +1672,7 @@ test('a forced check keeps a dismissal made while it was in flight', async () =>
   await forced;
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { dismissedVersion?: string };
   expect(persisted.dismissedVersion).toBe('1.9.3');
 });
@@ -1810,7 +1813,7 @@ test('a queued check cannot discard a successful forced result', async () => {
   expect(pending.length).toBe(1);
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { latestVersion: string };
   expect(persisted.latestVersion).toBe('1.9.4');
 });
@@ -1935,7 +1938,7 @@ test('a dismissal made after a forced check was queued survives it', async () =>
   expect(await forced).toEqual({ currentVersion: '1.9.2', phase: 'idle', strategy: 'squirrel' });
 
   const persisted = JSON.parse(
-    await readFile(join(directory.path, 'update-state.json'), 'utf8'),
+    await readFile(join(directory.path, 'update-state-codiff-jj.json'), 'utf8'),
   ) as { dismissedVersion?: string };
   expect(persisted.dismissedVersion).toBe('1.9.3');
 });
@@ -2088,7 +2091,7 @@ test('applyLatest force-checks and applies in one step', async () => {
     version: '1.9.3',
   });
   expect(autoUpdater.feedURL).toEqual({
-    url: 'https://update.electronjs.org/nkzw-tech/codiff/darwin-arm64/1.9.2',
+    url: 'https://update.electronjs.org/eersnington/codiff-jj/darwin-arm64/1.9.2',
   });
   expect(autoUpdater.checkForUpdatesCalls).toBe(1);
 });

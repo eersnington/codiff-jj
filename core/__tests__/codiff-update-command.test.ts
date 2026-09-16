@@ -104,7 +104,7 @@ test('runUpdateCommand prints manual guidance when the app cannot be opened', as
   });
 
   expect(exitCode).toBe(1);
-  expect(lines.join('\n')).toContain('https://github.com/nkzw-tech/codiff/releases');
+  expect(lines.join('\n')).toContain('https://github.com/eersnington/codiff-jj/releases');
 });
 
 test('runUpdateCommand guides source checkouts instead of updating', async () => {

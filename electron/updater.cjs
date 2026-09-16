@@ -432,7 +432,7 @@ const createUpdater = ({
   const manualUpdateUrl = () =>
     status.version
       ? releasePageUrl(status.version)
-      : 'https://github.com/nkzw-tech/codiff/releases';
+      : 'https://github.com/eersnington/codiff-jj/releases';
 
   const applyManualUpdate = async () => {
     const version = status.version;

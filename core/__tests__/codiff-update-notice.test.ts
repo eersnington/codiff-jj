@@ -13,7 +13,10 @@ const writeState = async (
     latestVersion: string;
   },
 ) =>
-  writeFile(join(configDir, 'update-state.json'), JSON.stringify({ compatible: true, ...state }));
+  writeFile(
+    join(configDir, 'update-state-codiff-jj.json'),
+    JSON.stringify({ compatible: true, ...state }),
+  );
 
 test('returns null when the cached release is incompatible', async () => {
   await using directory = await createTemporaryDirectory('codiff-notice-');

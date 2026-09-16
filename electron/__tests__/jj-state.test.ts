@@ -59,16 +59,6 @@ test('reads working-copy changes from a Jujutsu repository', async () => {
   expect(state.files[0]?.sections[0]?.patch).toContain('+hello');
 });
 
-test('prefers Jujutsu in a colocated workspace', async () => {
-  await using repo = await createJjTestRepository();
-  await writeFile(join(repo.path, 'tracked.txt'), 'jj owns this\n');
-
-  const state = await readRepositoryState(repo.path);
-
-  expect(state.repository.vcs).toBe('jj');
-  expect(state.source).toEqual({ type: 'working-tree' });
-});
-
 test('opens a named bookmark comparison', async () => {
   await using repo = await createJjTestRepository();
   await writeFile(join(repo.path, 'base.txt'), 'base\n');

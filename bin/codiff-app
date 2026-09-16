@@ -162,7 +162,7 @@ update_notifications_enabled() {
 print_update_notice() {
   [ -n "${HOME:-}" ] || return 0
   update_notifications_enabled || return 0
-  state_file="$HOME/.codiff/update-state.json"
+  state_file="$HOME/.codiff/update-state-codiff-jj.json"
   [ -f "$state_file" ] && [ -r "$state_file" ] || return 0
   # tail -n 1 mirrors JSON duplicate-key last-wins resolution.
   checked_at="$(sed -n 's/.*"lastCheckedAt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$state_file" 2>/dev/null | tail -n 1)"

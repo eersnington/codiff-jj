@@ -14,13 +14,7 @@ Codiff is a beautiful, minimal, local diff viewer for reviewing Git changes and 
 
 ## Download
 
-Install with Homebrew:
-
-```bash
-brew install --cask nkzw-tech/tap/codiff
-```
-
-Download the latest Codiff app from [GitHub Releases](https://github.com/nkzw-tech/codiff/releases).
+Download the latest Codiff app from [GitHub Releases](https://github.com/eersnington/codiff-jj/releases).
 
 After installing the app, run `Codiff > Install Terminal Helper` to make the `codiff` command available in your shell.
 
@@ -135,7 +129,7 @@ counts; when it is `false`, Codiff hides those changes from the working-tree rev
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/nkzw-tech/codiff/main/core/config/codiff-config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/eersnington/codiff-jj/main/core/config/codiff-config.schema.json",
   "settings": {
     "agentBackend": "codex",
     "claudeModel": "claude-sonnet-4-6",
