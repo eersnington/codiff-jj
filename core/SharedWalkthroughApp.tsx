@@ -71,6 +71,7 @@ import {
   writeSidebarWidth,
 } from './lib/sidebar-width.ts';
 import { getSourceLabel, getSourceKey } from './lib/source.ts';
+import { observeVisibleAnimation } from './lib/visible-animation.ts';
 import type {
   GitIdentity,
   PullRequestMergeOptions,
@@ -1366,7 +1367,7 @@ export function ReviewSurface({
             </div>
           </div>
         ) : (
-          <div className="loading codex">
+          <div className="loading codex" ref={observeVisibleAnimation}>
             <WalkthroughProgress
               phase={null}
               responseLabelIndex={0}

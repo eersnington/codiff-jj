@@ -1289,6 +1289,17 @@ if (squirrelStartup || !lock) {
 } else {
   app.setName('Codiff');
 
+  /** @type {Array<string>} */
+  const pendingOpenPaths = [];
+  app.on('open-file', (event, path) => {
+    event.preventDefault();
+    if (!app.isReady()) {
+      pendingOpenPaths.push(path);
+      return;
+    }
+    focusOrCreateWindow(path, { repositoryPathProvided: true, walkthrough: false });
+  });
+
   app.on('second-instance', (event, commandLine, workingDirectory, additionalData) => {
     const data = /** @type {SingleInstanceAdditionalData} */ (additionalData || {});
     const launchOptions =
@@ -1319,27 +1330,44 @@ if (squirrelStartup || !lock) {
     if (shouldDetectInitialAgent) {
       writeConfig(config);
     }
-    refreshInstalledAgentFiles();
     nativeTheme.themeSource = config.settings.theme;
     Menu.setApplicationMenu(buildApplicationMenu());
-
-    watchKeyboardLayout((layout) => {
-      for (const window of BrowserWindow.getAllWindows()) {
-        if (!window.isDestroyed()) {
-          window.webContents.send('codiff:keyboardLayoutChanged', layout);
-        }
-      }
-    });
 
     initUpdater();
     setTimeout(runScheduledUpdateCheck, INITIAL_UPDATE_CHECK_DELAY_MS);
     setInterval(runScheduledUpdateCheck, UPDATE_CHECK_TIMER_INTERVAL_MS);
 
     const launchOptions = getLaunchOptions();
-    focusOrCreateWindow(
-      getInitialRepositoryPath(getLaunchPath(), launchOptions, config.settings.lastRepositoryPath),
-      launchOptions,
-    );
+    app.once('browser-window-created', (_event, window) => {
+      window.once('ready-to-show', () => {
+        setImmediate(() => {
+          refreshInstalledAgentFiles();
+          watchKeyboardLayout((layout) => {
+            for (const openWindow of BrowserWindow.getAllWindows()) {
+              if (!openWindow.isDestroyed()) {
+                openWindow.webContents.send('codiff:keyboardLayoutChanged', layout);
+              }
+            }
+          });
+        });
+      });
+    });
+    const pendingOpenPath = pendingOpenPaths.shift();
+    if (pendingOpenPath) {
+      focusOrCreateWindow(pendingOpenPath, { repositoryPathProvided: true, walkthrough: false });
+    } else {
+      focusOrCreateWindow(
+        getInitialRepositoryPath(
+          getLaunchPath(),
+          launchOptions,
+          config.settings.lastRepositoryPath,
+        ),
+        launchOptions,
+      );
+    }
+    for (const path of pendingOpenPaths.splice(0)) {
+      focusOrCreateWindow(path, { repositoryPathProvided: true, walkthrough: false });
+    }
     if (launchOptions.applyUpdate) {
       void updater?.applyLatest().catch(() => {});
     }

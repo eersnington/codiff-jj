@@ -526,7 +526,11 @@ for arg in "$@"; do
     -*)
       ;;
     *)
-      if [ -z "$pull_request_source" ] && printf '%s' "$arg" | grep -Eiq '^(pr|pull-request)$'; then
+      if is_explicit_path_arg "$arg"; then
+        if [ -z "$repository_path" ]; then
+          repository_path="$arg"
+        fi
+      elif [ -z "$pull_request_source" ] && printf '%s' "$arg" | grep -Eiq '^(pr|pull-request)$'; then
         pull_request_provider="pr"
         expect_pull_request_value=1
       elif [ -z "$pull_request_source" ] && printf '%s' "$arg" | grep -Eiq '^(mr|merge-request)$'; then
@@ -659,7 +663,12 @@ open_codiff() {
     set -- --pi-session "$pi_session_id" "$@"
   fi
 
-  open -n "$app_path" --args "$@"
+  if [ "$#" -eq 1 ] && [ -d "$1" ]; then
+    # Deliver ordinary path opens directly to the running app through Launch Services.
+    open -a "$app_path" "$1"
+  else
+    open -n "$app_path" --args "$@"
+  fi
 }
 
 print_update_notice

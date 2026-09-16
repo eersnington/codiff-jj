@@ -23,6 +23,7 @@ import { matchesShortcut } from '../../config/keymap.ts';
 import type { CodiffKeymap } from '../../config/types.ts';
 import type { RepositoryLoadError, ReviewComment } from '../../lib/app-types.ts';
 import { buildReviewCommentsMarkdown } from '../../lib/review-comments.ts';
+import { observeVisibleAnimation } from '../../lib/visible-animation.ts';
 import type {
   ChangedFile,
   CodiffUpdateStatus,
@@ -43,7 +44,11 @@ export function ReviewSourceLoading() {
   }, []);
 
   return (
-    <div className="review-source-loading loading pulse" role="status">
+    <div
+      className="review-source-loading loading pulse"
+      ref={observeVisibleAnimation}
+      role="status"
+    >
       {visible ? 'Thinking…' : null}
     </div>
   );
@@ -132,7 +137,13 @@ export function UpdatePill({
         type="button"
       >
         {phase === 'updating' ? (
-          <CircleNotch aria-hidden className="update-pill-spinner" size={14} weight="bold" />
+          <CircleNotch
+            aria-hidden
+            className="update-pill-spinner"
+            ref={observeVisibleAnimation}
+            size={14}
+            weight="bold"
+          />
         ) : phase === 'error' ? (
           <WarningOctagon aria-hidden size={14} weight="bold" />
         ) : null}

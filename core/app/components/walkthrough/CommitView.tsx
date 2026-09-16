@@ -10,6 +10,7 @@ import {
   type CommitGroup,
   type CommitModel,
 } from '../../../lib/narrative-walkthrough.ts';
+import { observeVisibleAnimation } from '../../../lib/visible-animation.ts';
 import type {
   WalkthroughCommitMessageRequest,
   WalkthroughCommitMessageResult,
@@ -517,7 +518,7 @@ export function CommitView({
                   'Commit output'
                 ) : (
                   <>
-                    <span className="wt-commit-log-pulse" />
+                    <span className="wt-commit-log-pulse" ref={observeVisibleAnimation} />
                     Committing…
                   </>
                 )}

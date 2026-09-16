@@ -19,7 +19,7 @@ import {
   type LineAnnotation,
   type SelectedLineRange,
 } from '@pierre/diffs';
-import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react';
+import { CodeView, type CodeViewHandle } from '@pierre/diffs/react';
 import { Copy as LucideCopy } from 'lucide-react';
 import {
   Fragment,
@@ -66,10 +66,8 @@ import {
   DIFF_LINE_HEIGHT,
   diffCollapsedContextThreshold,
   diffContextExpansionLineCount,
-  maxWorkerThreads,
   sectionLabel,
   statusLabel,
-  workerHighlighterOptions,
 } from '../../lib/code-view-options.ts';
 import {
   canRenderImagePreview,
@@ -105,6 +103,7 @@ import { getReviewIdentity, isReviewIdentityViewed } from '../../lib/review-iden
 import { isLiveReviewSource, isWorkingCopySectionKind } from '../../lib/review-sections.ts';
 import { applySearchHighlights } from '../../lib/search-highlights.ts';
 import { getSourceKey } from '../../lib/source.ts';
+import { observeVisibleAnimation } from '../../lib/visible-animation.ts';
 import type {
   ChangedFile,
   CodiffPreferences,
@@ -124,6 +123,7 @@ import type {
 import { Avatar } from './Avatar.tsx';
 import { Button } from './Button.tsx';
 import { DefinitionPopover } from './DefinitionPopover.tsx';
+import { DiffWorkerProvider } from './DiffWorkerProvider.tsx';
 import {
   RepositoryMarkdownEditor,
   type MarkdownDocumentEditorHandle,
@@ -1825,6 +1825,7 @@ function ReviewCommentEditor({
               className={`review-comment-codex-reply${
                 comment.codexReply.status === 'loading' ? ' is-loading' : ''
               }${comment.codexReply.status === 'error' ? ' error' : ''}`}
+              ref={comment.codexReply.status === 'loading' ? observeVisibleAnimation : undefined}
             >
               {comment.codexReply.status === 'loading' ? (
                 <span className="review-comment-codex-loading">Waiting for {agentLabel}…</span>
@@ -3586,20 +3587,6 @@ export function ReviewCodeView({
     [clearCommentLineHighlight, markdownPreviewSections, onRefreshMarkdown, source],
   );
 
-  const workerPoolOptions = useMemo(
-    () => ({
-      poolSize: Math.min(
-        maxWorkerThreads,
-        Math.max(1, navigator.hardwareConcurrency || maxWorkerThreads),
-      ),
-      workerFactory: () =>
-        new Worker(new URL('@pierre/diffs/worker/worker.js', import.meta.url), {
-          type: 'module',
-        }),
-    }),
-    [],
-  );
-
   const requestScrollTargetIntoView = useCallback(
     (
       itemId: string,
@@ -4056,14 +4043,14 @@ export function ReviewCodeView({
     if (resolvedActiveSearchMatch.lineNumber == null) {
       handle.scrollTo({
         align: 'center',
-        behavior: 'smooth-auto',
+        behavior: 'instant',
         id: resolvedActiveSearchMatch.itemId,
         type: 'item',
       });
     } else {
       handle.scrollTo({
         align: 'center',
-        behavior: 'smooth-auto',
+        behavior: 'instant',
         id: resolvedActiveSearchMatch.itemId,
         lineNumber: resolvedActiveSearchMatch.lineNumber,
         offset: DEFAULT_PADDING,
@@ -4319,32 +4306,9 @@ export function ReviewCodeView({
     />
   );
 
-  const renderedCodeView = disableWorkerPool ? (
-    codeView
-  ) : (
-    <WorkerPoolContextProvider
-      highlighterOptions={workerHighlighterOptions}
-      poolOptions={workerPoolOptions}
-    >
-      <CodeView
-        className="code-view"
-        disableWorkerPool={false}
-        items={codeViewItems}
-        onScroll={handleScroll}
-        onSelectedLinesChange={setCodeViewSelectedLines}
-        options={codeViewOptions}
-        ref={codeViewRef}
-        renderAnnotation={renderAnnotation}
-        renderCodeViewHeader={sourceDescriptionItemId ? renderCodeViewHeader : undefined}
-        renderCustomHeader={renderCustomHeader}
-        selectedLines={isReadOnly ? null : selectedLines}
-      />
-    </WorkerPoolContextProvider>
-  );
-
   return (
     <>
-      {renderedCodeView}
+      {disableWorkerPool ? codeView : <DiffWorkerProvider>{codeView}</DiffWorkerProvider>}
       {definitionLookup?.sourceKey === sourceKey && onOpenDefinition ? (
         <DefinitionPopover
           anchor={definitionLookup.anchor}

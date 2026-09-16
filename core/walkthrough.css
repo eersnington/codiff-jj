@@ -1014,13 +1014,17 @@
 }
 @keyframes wt-commit-log-pulse {
   0%,
+  35%,
   100% {
     opacity: 1;
     transform: scale(1);
+    animation-timing-function: steps(6, end);
   }
-  50% {
+  45%,
+  90% {
     opacity: 0.45;
     transform: scale(0.72);
+    animation-timing-function: steps(6, end);
   }
 }
 .wt-commit-log-term {

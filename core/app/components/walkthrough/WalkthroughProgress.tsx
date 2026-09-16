@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { observeVisibleAnimation } from '../../../lib/visible-animation.ts';
 import type { WalkthroughProgressPhase } from '../../../types.ts';
 
 export const walkthroughResponseLabels = [
@@ -47,7 +48,12 @@ export function WalkthroughProgress({
         : 'Generating walkthrough…';
 
   return (
-    <span aria-live="polite" className="walkthrough-progress" role="status">
+    <span
+      aria-live="polite"
+      className="walkthrough-progress"
+      ref={observeVisibleAnimation}
+      role="status"
+    >
       <span className="walkthrough-progress-label">{label}</span>
       <span
         aria-hidden={!showTimer}

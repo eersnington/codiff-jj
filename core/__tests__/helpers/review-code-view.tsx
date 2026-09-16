@@ -141,8 +141,7 @@ vi.mock('@pierre/diffs/react', async () => {
         }),
       );
     }),
-    WorkerPoolContextProvider: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    WorkerPoolContext: React.createContext(undefined),
   };
 });
 
