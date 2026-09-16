@@ -68,7 +68,6 @@ test('applies and clears the modifier affordance inside rendered diff shadow roo
 
   applyIdentifierNavigationState([{ element: host }], false);
   expect(host.hasAttribute('data-codiff-definition-mode')).toBe(false);
-  expect(root.querySelector('[data-codiff-identifier]')).toBeNull();
   expect(line.textContent).toBe(
     '  return formatGreeting(name).value; // do not navigate these words',
   );

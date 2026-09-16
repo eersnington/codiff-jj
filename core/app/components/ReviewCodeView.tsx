@@ -120,6 +120,9 @@ import type {
   ReviewAuthor,
   ReviewSource,
 } from '../../types.ts';
+import { useCodeViewAnnotations } from '../hooks/useCodeViewAnnotations.ts';
+import { useCodeViewPlaceholderFile } from '../hooks/useCodeViewPlaceholderFile.ts';
+import { useMountEffect } from '../hooks/useMountEffect.ts';
 import { Avatar } from './Avatar.tsx';
 import { Button } from './Button.tsx';
 import { DefinitionPopover } from './DefinitionPopover.tsx';
@@ -429,42 +432,83 @@ const formatBytes = (size: number) => {
 };
 
 function MarkdownPreview({
+  cacheKey,
   contents,
   editable,
-  layoutKey,
+  heightCache,
   onEditorRef,
   onLayoutReady,
   path,
   sectionId,
 }: {
+  cacheKey: string;
   contents: string;
   editable: boolean;
-  layoutKey: string;
+  heightCache: Map<string, number>;
   onEditorRef: (sectionId: string, editor: MarkdownDocumentEditorHandle | null) => void;
   onLayoutReady: (sectionId: string) => void;
   path: string;
   sectionId: string;
 }) {
-  useLayoutEffect(() => {
-    onLayoutReady(sectionId);
-  }, [layoutKey, onLayoutReady, sectionId]);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const measure = useCallback(
+    (reportedHeight?: number) => {
+      const content = contentRef.current;
+      if (
+        !content?.isConnected ||
+        content.querySelector(
+          '.codiff-markdown-editor-message:not(.error), .codiff-readonly-markdown-loading',
+        )
+      ) {
+        return;
+      }
+      // Measure the unconstrained content, so edits and width changes can shrink
+      // the document as well as grow it. Child reports also cover lazy editors.
+      const height = content.getBoundingClientRect().height || reportedHeight;
+      if (height == null || height <= 0) {
+        return;
+      }
+      setReady(true);
+      if (heightCache.get(cacheKey) !== height) {
+        heightCache.set(cacheKey, height);
+        onLayoutReady(sectionId);
+      }
+    },
+    [cacheKey, heightCache, onLayoutReady, sectionId],
+  );
 
-  return editable ? (
-    <div className="codiff-markdown-preview editable">
-      <RepositoryMarkdownEditor
-        onHeightChange={() => onLayoutReady(sectionId)}
-        path={path}
-        ref={(editor) => onEditorRef(sectionId, editor)}
-      />
-    </div>
-  ) : (
-    <div className="codiff-markdown-preview">
-      <ReadOnlyMarkdown
-        ariaLabel={`Preview ${path}`}
-        className="codiff-markdown-preview-editor"
-        onHeightChange={() => onLayoutReady(sectionId)}
-        value={contents}
-      />
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) {
+      return;
+    }
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(content);
+    measure();
+    return () => observer.disconnect();
+  }, [measure]);
+
+  return (
+    // Keep the last document height while a recycled editor reloads. Measuring
+    // its small loading placeholder would move every following item upward.
+    <div style={{ minHeight: ready ? undefined : heightCache.get(cacheKey) }}>
+      <div className={`codiff-markdown-preview${editable ? ' editable' : ''}`} ref={contentRef}>
+        {editable ? (
+          <RepositoryMarkdownEditor
+            onHeightChange={measure}
+            path={path}
+            ref={(editor) => onEditorRef(sectionId, editor)}
+          />
+        ) : (
+          <ReadOnlyMarkdown
+            ariaLabel={`Preview ${path}`}
+            className="codiff-markdown-preview-editor"
+            onHeightChange={measure}
+            value={contents}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -1300,7 +1344,7 @@ function ReviewCommentEditor({
   identity: GitIdentity | null;
   keymap: CodiffKeymap;
   onAskCodex?: (commentId: string) => void;
-  onCommentBlur: (comment: ReviewComment, body: string) => void;
+  onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
   onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
   onCommentFocus: (comment: ReviewComment) => void;
   onDeleteComment: (commentId: string) => void;
@@ -1529,8 +1573,8 @@ function ReviewCommentEditor({
   ]);
 
   const handleBlur = useCallback(() => {
-    onCommentBlur(flushDraft(), draft);
-  }, [draft, flushDraft, onCommentBlur]);
+    onCommentBlur(comment, draft, flushDraft);
+  }, [comment, draft, flushDraft, onCommentBlur]);
 
   // Local reviews have nothing to submit a comment to, so adding one means
   // finishing it the way clicking away does. `MarkdownEditorHandle` exposes no
@@ -1904,7 +1948,7 @@ function ReviewCommentThreadGroup({
   identity: GitIdentity | null;
   keymap: CodiffKeymap;
   onAskCodex?: (commentId: string) => void;
-  onCommentBlur: (comment: ReviewComment, body: string) => void;
+  onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
   onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
   onCommentFocus: (comment: ReviewComment) => void;
   onDeleteComment: (commentId: string) => void;
@@ -2076,7 +2120,7 @@ function ReviewAnnotation({
   identity: GitIdentity | null;
   keymap: CodiffKeymap;
   onAskCodex?: (commentId: string) => void;
-  onCommentBlur: (comment: ReviewComment, body: string) => void;
+  onCommentBlur: (comment: ReviewComment, body: string, flushDraft: () => void) => void;
   onCommentDraftChange?: (comment: Pick<ReviewComment, 'body' | 'id'> | null) => void;
   onCommentFocus: (comment: ReviewComment) => void;
   onDeleteComment: (commentId: string) => void;
@@ -2617,13 +2661,20 @@ export function ReviewCodeView({
   walkthroughNotes: ReadonlyMap<string, WalkthroughNote>;
   wordWrap: boolean;
 }) {
-  const codeViewRef = useRef<CodeViewHandle<ReviewAnnotationMetadata>>(null);
+  const codeViewRef = useRef<CodeViewHandle<ReviewAnnotationMetadata, undefined>>(null);
+  const getPlaceholderFile = useCodeViewPlaceholderFile();
+  const getAnnotations = useCodeViewAnnotations();
+  const [markdownPreviewHeights] = useState(() => new Map<string, number>());
   const markdownEditorRefs = useRef(new Map<string, MarkdownDocumentEditorHandle>());
   const refreshingMarkdownSectionsRef = useRef(new Set<string>());
   const deferredTimersRef = useRef<Set<number>>(new Set());
   const handledScrollRequestRef = useRef<number | null>(null);
   const handledHunkNavRef = useRef<number | null>(hunkNavigation?.request ?? null);
   const emptyCommentDeleteTimersRef = useRef<Map<string, number>>(new Map());
+  const activePointerIdsRef = useRef(new Set<number>());
+  const pendingCommentBlursRef = useRef(new Map<string, () => void>());
+  const pendingCommentBlurTimerRef = useRef<number | null>(null);
+  const focusedCommentEditorIdRef = useRef<string | null>(null);
   const definitionHighlightFrameRef = useRef<number | null>(null);
   const highlightFrameRef = useRef<number | null>(null);
   const ignoreNextLineSelectionEndRef = useRef(false);
@@ -2646,8 +2697,8 @@ export function ReviewCodeView({
   const [markdownPreviewSections, setMarkdownPreviewSections] = useState<ReadonlySet<string>>(
     () => new Set([...initialMarkdownPreviewSectionIds, ...initialEditableMarkdownSections]),
   );
-  // Markdown previews render inside a CodeView item. Change the item version once after the
-  // preview appears so CodeView measures the preview height instead of the placeholder height.
+  // Remeasure only after the preview's actual content height changes. Mounting
+  // a loading placeholder must not invalidate a recycled document's layout.
   const [markdownPreviewLayoutPassBySection, setMarkdownPreviewLayoutPassBySection] = useState<
     Readonly<Record<string, number>>
   >({});
@@ -2810,12 +2861,7 @@ export function ReviewCodeView({
             } satisfies LineAnnotation<ReviewAnnotationMetadata>,
           ],
           collapsed: false,
-          file: {
-            cacheKey: `walkthrough-header:${block.id}`,
-            contents: ' ',
-            lang: 'text',
-            name: headerId,
-          },
+          file: getPlaceholderFile(headerId),
           id: headerId,
           type: 'file',
           // Selection stays out of the version: a scroll-driven current-stop
@@ -2970,12 +3016,7 @@ export function ReviewCodeView({
               } satisfies LineAnnotation<ReviewAnnotationMetadata>,
             ],
             collapsed: isCollapsed,
-            file: {
-              cacheKey: `image-preview:${file.fingerprint}:${section.id}`,
-              contents: ' ',
-              lang: 'text',
-              name: file.path,
-            },
+            file: getPlaceholderFile(file.path),
             id,
             type: 'file',
             version: getItemVersion(
@@ -2990,30 +3031,32 @@ export function ReviewCodeView({
           const markdownPreviewAddedLinesDigest = getAddedLinesDigest(markdownPreview.addedLines);
           const markdownPreviewLayoutKey = `${section.id}:${markdownPreview.contents.length}:${markdownPreviewAddedLinesDigest}`;
           nextItems.push({
-            annotations: [
-              ...fileCommentAnnotations,
-              {
-                lineNumber: 1,
-                metadata: {
-                  addedLines: markdownPreview.addedLines,
-                  contents: markdownPreview.contents,
-                  editable: canEditMarkdown,
-                  layoutKey: markdownPreviewLayoutKey,
-                  path: file.path,
-                  sectionId: section.id,
-                  type: 'markdown-preview',
-                },
-              } satisfies LineAnnotation<ReviewAnnotationMetadata>,
-            ],
+            annotations: getAnnotations(
+              id,
+              JSON.stringify([
+                markdownPreview.contents,
+                markdownPreviewAddedLinesDigest,
+                canEditMarkdown,
+                fileCommentAnnotations,
+              ]),
+              [
+                ...fileCommentAnnotations,
+                {
+                  lineNumber: 1,
+                  metadata: {
+                    addedLines: markdownPreview.addedLines,
+                    contents: markdownPreview.contents,
+                    editable: canEditMarkdown,
+                    layoutKey: markdownPreviewLayoutKey,
+                    path: file.path,
+                    sectionId: section.id,
+                    type: 'markdown-preview',
+                  },
+                } satisfies LineAnnotation<ReviewAnnotationMetadata>,
+              ],
+            ),
             collapsed: isCollapsed,
-            file: {
-              cacheKey: `markdown-preview:${section.newFile?.cacheKey ?? file.fingerprint}:${
-                markdownPreview.contents.length
-              }:${markdownPreviewAddedLinesDigest}`,
-              contents: ' ',
-              lang: 'text',
-              name: file.path,
-            },
+            file: getPlaceholderFile(file.path),
             id,
             type: 'file',
             version: getItemVersion(
@@ -3064,6 +3107,8 @@ export function ReviewCodeView({
     diffStyle,
     expandedGenerated,
     forceExpandedPaths,
+    getAnnotations,
+    getPlaceholderFile,
     imagePreviewLayoutPassBySection,
     isReadOnly,
     itemVersionByKey,
@@ -3087,17 +3132,15 @@ export function ReviewCodeView({
     return [
       {
         collapsed: true,
-        file: {
-          cacheKey: sourceDescriptionItemId,
-          contents: '',
-          lang: 'text',
-          name: shouldShowCommitMessage ? 'commit-message.md' : 'source-description.md',
-        },
+        file: getPlaceholderFile(
+          shouldShowCommitMessage ? 'commit-message.md' : 'source-description.md',
+          '',
+        ),
         id: sourceDescriptionItemId,
         type: 'file',
       },
     ];
-  }, [items, shouldShowCommitMessage, sourceDescriptionItemId]);
+  }, [getPlaceholderFile, items, shouldShowCommitMessage, sourceDescriptionItemId]);
 
   const clearCommentLineHighlight = useCallback(() => {
     codeViewRef.current?.clearSelectedLines();
@@ -3159,6 +3202,86 @@ export function ReviewCodeView({
       deferredTimersRef.current.delete(timer);
     }
     emptyCommentDeleteTimersRef.current.clear();
+  }, []);
+
+  const flushPendingCommentBlurs = useCallback(() => {
+    if (activePointerIdsRef.current.size > 0) {
+      return;
+    }
+
+    const callbacks = [...pendingCommentBlursRef.current.values()];
+    pendingCommentBlursRef.current.clear();
+    for (const callback of callbacks) {
+      callback();
+    }
+  }, []);
+
+  const schedulePendingCommentBlurFlush = useCallback(() => {
+    if (
+      activePointerIdsRef.current.size > 0 ||
+      pendingCommentBlursRef.current.size === 0 ||
+      pendingCommentBlurTimerRef.current != null
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      deferredTimersRef.current.delete(timer);
+      pendingCommentBlurTimerRef.current = null;
+      flushPendingCommentBlurs();
+    }, 0);
+    pendingCommentBlurTimerRef.current = timer;
+    deferredTimersRef.current.add(timer);
+  }, [flushPendingCommentBlurs]);
+
+  useMountEffect(() => {
+    const activePointerIds = activePointerIdsRef.current;
+    const deferredTimers = deferredTimersRef.current;
+    const pendingCommentBlurs = pendingCommentBlursRef.current;
+    const handlePointerDown = (event: PointerEvent) => {
+      const timer = pendingCommentBlurTimerRef.current;
+      if (timer != null) {
+        window.clearTimeout(timer);
+        deferredTimers.delete(timer);
+        pendingCommentBlurTimerRef.current = null;
+      }
+      activePointerIds.add(event.pointerId);
+    };
+    const handlePointerEnd = (event: PointerEvent) => {
+      activePointerIds.delete(event.pointerId);
+      schedulePendingCommentBlurFlush();
+    };
+    const handleWindowBlur = () => {
+      activePointerIds.clear();
+      schedulePendingCommentBlurFlush();
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('pointercancel', handlePointerEnd, true);
+    window.addEventListener('pointerup', handlePointerEnd, true);
+    window.addEventListener('blur', handleWindowBlur);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('pointercancel', handlePointerEnd, true);
+      window.removeEventListener('pointerup', handlePointerEnd, true);
+      window.removeEventListener('blur', handleWindowBlur);
+      activePointerIds.clear();
+      pendingCommentBlurs.clear();
+      const timer = pendingCommentBlurTimerRef.current;
+      if (timer != null) {
+        window.clearTimeout(timer);
+        deferredTimers.delete(timer);
+        pendingCommentBlurTimerRef.current = null;
+      }
+    };
+  });
+
+  const deferCommentBlurUntilPointerEnd = useCallback((commentId: string, callback: () => void) => {
+    if (activePointerIdsRef.current.size > 0 || pendingCommentBlurTimerRef.current != null) {
+      pendingCommentBlursRef.current.set(commentId, callback);
+    } else {
+      callback();
+    }
   }, []);
 
   const scrollFileItemToTop = useCallback((itemId: string) => {
@@ -3279,7 +3402,7 @@ export function ReviewCodeView({
     };
   }, [isReadOnly, onLoadSectionContents]);
 
-  const codeViewOptions: CodeViewOptions<ReviewAnnotationMetadata> = useMemo(
+  const codeViewOptions: CodeViewOptions<ReviewAnnotationMetadata, undefined> = useMemo(
     () =>
       ({
         collapsedContextThreshold: diffCollapsedContextThreshold,
@@ -3308,11 +3431,11 @@ export function ReviewCodeView({
           createCommentForRange(range, context);
         },
         onLineClick: (line, context) => {
+          const lineElement = 'lineElement' in line ? line.lineElement : null;
           const isDefinitionNavigation = isPrimaryModifier(line.event);
           if (isDefinitionNavigation && onFindDefinitions) {
             line.event.preventDefault();
             line.event.stopPropagation();
-            const lineElement = 'lineElement' in line ? line.lineElement : null;
             const identifier = lineElement
               ? getIdentifierFromPointerEvent(line.event, lineElement)
               : null;
@@ -3380,7 +3503,7 @@ export function ReviewCodeView({
             return;
           }
 
-          if (hasActiveTextSelection()) {
+          if (hasActiveTextSelection(lineElement)) {
             return;
           }
 
@@ -3454,7 +3577,7 @@ export function ReviewCodeView({
         themeType: theme,
         tokenizeMaxLength: 100_000,
         unsafeCSS: codeViewUnsafeCSS,
-      }) satisfies CodeViewOptions<ReviewAnnotationMetadata>,
+      }) satisfies CodeViewOptions<ReviewAnnotationMetadata, undefined>,
     [
       bottomInset,
       diffLineHeight,
@@ -3478,6 +3601,8 @@ export function ReviewCodeView({
 
   const focusComment = useCallback(
     (comment: ReviewComment) => {
+      focusedCommentEditorIdRef.current = comment.id;
+      pendingCommentBlursRef.current.delete(comment.id);
       onCommentDraftChange?.({ body: comment.body, id: comment.id });
       const timer = emptyCommentDeleteTimersRef.current.get(comment.id);
       if (timer == null) {
@@ -3492,26 +3617,37 @@ export function ReviewCodeView({
   );
 
   const blurComment = useCallback(
-    (comment: ReviewComment, body: string) => {
-      onCommentDraftChange?.(null);
-      clearCommentLineHighlight();
-      if (!comment.isReadOnly && body.trim().length === 0) {
-        const existingTimer = emptyCommentDeleteTimersRef.current.get(comment.id);
-        if (existingTimer != null) {
-          window.clearTimeout(existingTimer);
-          deferredTimersRef.current.delete(existingTimer);
+    (comment: ReviewComment, body: string, flushDraft: () => void) => {
+      deferCommentBlurUntilPointerEnd(comment.id, () => {
+        if (focusedCommentEditorIdRef.current === comment.id) {
+          focusedCommentEditorIdRef.current = null;
+          onCommentDraftChange?.(null);
         }
+        flushDraft();
+        clearCommentLineHighlight();
+        if (!comment.isReadOnly && body.trim().length === 0) {
+          const existingTimer = emptyCommentDeleteTimersRef.current.get(comment.id);
+          if (existingTimer != null) {
+            window.clearTimeout(existingTimer);
+            deferredTimersRef.current.delete(existingTimer);
+          }
 
-        const timer = window.setTimeout(() => {
-          deferredTimersRef.current.delete(timer);
-          emptyCommentDeleteTimersRef.current.delete(comment.id);
-          onDeleteComment(comment.id);
-        }, 120);
-        deferredTimersRef.current.add(timer);
-        emptyCommentDeleteTimersRef.current.set(comment.id, timer);
-      }
+          const timer = window.setTimeout(() => {
+            deferredTimersRef.current.delete(timer);
+            emptyCommentDeleteTimersRef.current.delete(comment.id);
+            onDeleteComment(comment.id);
+          }, 120);
+          deferredTimersRef.current.add(timer);
+          emptyCommentDeleteTimersRef.current.set(comment.id, timer);
+        }
+      });
     },
-    [clearCommentLineHighlight, onCommentDraftChange, onDeleteComment],
+    [
+      clearCommentLineHighlight,
+      deferCommentBlurUntilPointerEnd,
+      onCommentDraftChange,
+      onDeleteComment,
+    ],
   );
 
   const replyToThread = useCallback(
@@ -3998,6 +4134,7 @@ export function ReviewCodeView({
       return;
     }
 
+    let pointerDown = false;
     const updateDefinitionModifierState = (active: boolean) => {
       if (definitionModifierActiveRef.current === active) {
         return;
@@ -4006,25 +4143,39 @@ export function ReviewCodeView({
       updateRenderedIdentifierNavigation(active);
     };
     const handleModifierChange = (event: KeyboardEvent) => {
-      updateDefinitionModifierState(isPrimaryModifier(event));
+      updateDefinitionModifierState(isPrimaryModifier(event) && !pointerDown);
     };
     const handleModifierPointer = (event: PointerEvent) => {
-      updateDefinitionModifierState(isPrimaryModifier(event));
+      pointerDown = (event.buttons & 1) !== 0;
+      updateDefinitionModifierState(isPrimaryModifier(event) && !pointerDown);
     };
-    const clearDefinitionModifierState = () => updateDefinitionModifierState(false);
+    const handleSelectionChange = () => {
+      // A selection can start or clear without the modifier changing.
+      updateRenderedIdentifierNavigation(definitionModifierActiveRef.current);
+    };
+    const clearDefinitionModifierState = () => {
+      pointerDown = false;
+      updateDefinitionModifierState(false);
+    };
 
     window.addEventListener('keydown', handleModifierChange);
     window.addEventListener('keyup', handleModifierChange);
     window.addEventListener('pointerdown', handleModifierPointer);
     window.addEventListener('pointermove', handleModifierPointer);
+    window.addEventListener('pointerup', handleModifierPointer);
+    window.addEventListener('pointercancel', clearDefinitionModifierState);
     window.addEventListener('blur', clearDefinitionModifierState);
+    document.addEventListener('selectionchange', handleSelectionChange);
     return () => {
       clearDefinitionModifierState();
       window.removeEventListener('keydown', handleModifierChange);
       window.removeEventListener('keyup', handleModifierChange);
       window.removeEventListener('pointerdown', handleModifierPointer);
       window.removeEventListener('pointermove', handleModifierPointer);
+      window.removeEventListener('pointerup', handleModifierPointer);
+      window.removeEventListener('pointercancel', clearDefinitionModifierState);
       window.removeEventListener('blur', clearDefinitionModifierState);
+      document.removeEventListener('selectionchange', handleSelectionChange);
     };
   }, [onFindDefinitions, updateRenderedIdentifierNavigation]);
 
@@ -4176,9 +4327,10 @@ export function ReviewCodeView({
       if (annotation.metadata.type === 'markdown-preview') {
         return (
           <MarkdownPreview
+            cacheKey={`${sourceKey}:${item.id}`}
             contents={annotation.metadata.contents}
             editable={annotation.metadata.editable}
-            layoutKey={annotation.metadata.layoutKey}
+            heightCache={markdownPreviewHeights}
             onEditorRef={setMarkdownEditorRef}
             onLayoutReady={markMarkdownPreviewLayoutReady}
             path={annotation.metadata.path}
@@ -4236,6 +4388,7 @@ export function ReviewCodeView({
       itemMetadata,
       keymap,
       markMarkdownPreviewLayoutReady,
+      markdownPreviewHeights,
       markImagePreviewLayoutReady,
       markCommentLayoutChanged,
       onAskCodex,
@@ -4249,6 +4402,7 @@ export function ReviewCodeView({
       replyToThread,
       setMarkdownEditorRef,
       source,
+      sourceKey,
       supportsReviewCommentActions,
     ],
   );

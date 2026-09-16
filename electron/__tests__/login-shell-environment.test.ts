@@ -31,6 +31,71 @@ const createFakeLoginShell = async (directory: string, body: string) => {
   return shellPath;
 };
 
+const expectProcessToExit = async (pidPath: string) => {
+  const pid = Number(await readFile(pidPath, 'utf8'));
+  try {
+    await expect
+      .poll(() => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .toBe(false);
+  } finally {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // The process has already exited.
+    }
+  }
+};
+
+test.skipIf(process.platform === 'win32')(
+  'isolates login shells from the caller’s controlling terminal',
+  async () => {
+    await using directory = await createTemporaryDirectory('codiff-login-shell-terminal-');
+    const shell = await createFakeLoginShell(
+      directory.path,
+      `if ( : </dev/tty ) 2>/dev/null; then
+  export CODIFF_HAS_TERMINAL=yes
+else
+  export CODIFF_HAS_TERMINAL=no
+fi
+exec /bin/sh -c "$4"
+`,
+    );
+    const { spawn } = await import('node-pty');
+    const terminal = spawn(
+      process.execPath,
+      [
+        '-e',
+        `const { openSync, closeSync } = require('node:fs');
+const { resolveLoginShellEnvironment } = require(${JSON.stringify(require.resolve('../login-shell-environment.cjs'))});
+closeSync(openSync('/dev/tty', 'r'));
+resolveLoginShellEnvironment(${JSON.stringify(shell)}).then((environment) => {
+  console.log('CODIFF_HAS_TERMINAL=' + environment.CODIFF_HAS_TERMINAL);
+});`,
+      ],
+      { cwd: directory.path },
+    );
+    let output = '';
+    const dataListener = terminal.onData((data) => (output += data));
+    try {
+      const result = await new Promise<{ exitCode: number }>((resolve) => {
+        terminal.onExit(resolve);
+      });
+      expect(result.exitCode).toBe(0);
+      expect(output).toContain('CODIFF_HAS_TERMINAL=no');
+    } finally {
+      dataListener.dispose();
+      terminal.kill();
+    }
+  },
+);
+
 test('resolves variables exported by the login shell', async () => {
   await using directory = await createTemporaryDirectory('codiff-login-shell-');
   // Prints startup noise first, the way version managers do in real login
@@ -141,12 +206,14 @@ test('builds command environments where the process wins over the login shell', 
 
 test('salvages a clean environment dump when a background child holds stdout open', async () => {
   await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  const pidPath = join(directory.path, 'child.pid');
   // The shell finishes the dump and exits cleanly, but leaves behind a child
   // that inherits stdout, so `close` stays hours away from `exit`.
   const shell = await createFakeLoginShell(
     directory.path,
     `CODIFF_FAKE_TOKEN='from-login-shell' /bin/sh -c "$4"
 sleep 10 &
+echo $! > '${pidPath}'
 exit 0
 `,
   );
@@ -154,16 +221,21 @@ exit 0
   const environment = await resolveLoginShellEnvironment(shell, 500);
 
   expect(environment.CODIFF_FAKE_TOKEN).toBe('from-login-shell');
+  await expectProcessToExit(pidPath);
 });
 
 test('abandons a login shell that ignores termination', async () => {
   await using directory = await createTemporaryDirectory('codiff-login-shell-');
+  const pidPath = join(directory.path, 'child.pid');
   const shell = await createFakeLoginShell(
     directory.path,
     `trap '' TERM
-sleep 10
+sleep 10 &
+echo $! > '${pidPath}'
+wait
 `,
   );
 
   expect(await resolveLoginShellEnvironment(shell, 500)).toEqual({});
+  await expectProcessToExit(pidPath);
 });

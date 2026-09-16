@@ -1,5 +1,6 @@
 import dunkelTheme from '../themes/dunkel.json' with { type: 'json' };
 import lichtTheme from '../themes/licht.json' with { type: 'json' };
+import { hasActiveTextSelection } from './review-comments.ts';
 
 export type IdentifierAtOffset = {
   identifier: string;
@@ -107,7 +108,7 @@ const isNonCodeSyntaxToken = (element: HTMLElement | null) => {
   return [...nonCodeTokenColors].some((color) => style.includes(color));
 };
 
-const clearIdentifierNavigationWrappers = (root: ShadowRoot) => {
+export const clearIdentifierNavigationWrappers = (root: ParentNode) => {
   for (const wrapper of Array.from(
     root.querySelectorAll<HTMLElement>(`[${identifierNavigationAttribute}]`),
   )) {
@@ -173,16 +174,16 @@ export const applyIdentifierNavigationState = (
   active: boolean,
 ) => {
   for (const { element } of renderedItems) {
-    element.toggleAttribute(definitionModifierAttribute, active);
     const root = element.shadowRoot;
-    if (!root) {
-      continue;
-    }
-
-    clearIdentifierNavigationWrappers(root);
-    if (active) {
+    // Check at mutation time, including deferred renders. Replacing selected
+    // text nodes collapses the browser's selection inside the shadow root.
+    const enabled = active && !hasActiveTextSelection(root);
+    element.toggleAttribute(definitionModifierAttribute, enabled);
+    if (root && enabled) {
       wrapIdentifierNavigationText(root);
     }
+    // Keep existing spans when disabling or refreshing the affordance. Only
+    // the host attribute needs to change; unwrapping would also erase selection.
   }
 };
 
