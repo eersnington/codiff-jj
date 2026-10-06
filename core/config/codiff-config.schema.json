@@ -27,8 +27,8 @@
         },
         "claudeModel": {
           "type": "string",
-          "default": "claude-sonnet-4-6",
-          "description": "The Claude Code model to use for review assistance and walkthroughs when agentBackend is 'claude'."
+          "default": "sonnet",
+          "description": "The Claude Code model to use for review assistance and walkthroughs when agentBackend is 'claude'. Use an alias such as 'opus', 'sonnet', or 'haiku' to follow the newest model in that family, or any model id that `claude --model` accepts. The Model menu lists the models that the installed Claude Code reports."
         },
         "codeFontFamily": {
           "type": "string",
@@ -65,8 +65,8 @@
         },
         "openAIModel": {
           "type": "string",
-          "default": "gpt-5.6-terra",
-          "description": "The OpenAI model to use for review assistance and walkthroughs."
+          "default": "codex-default",
+          "description": "The Codex model to use for review assistance and walkthroughs when agentBackend is 'codex'. Use 'codex-default' to use Codex's current default model (or the model in ~/.codex/config.toml), or any model id that `codex --model` accepts. The Model menu lists the models that the installed Codex reports."
         },
         "opencodeModel": {
           "type": "string",

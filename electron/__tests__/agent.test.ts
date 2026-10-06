@@ -26,6 +26,7 @@ const {
   getAgentMenuModels: (
     agent: ReturnType<typeof getAgent>,
     selectedModel: string,
+    models?: ReadonlyArray<{ id: string; label: string }>,
   ) => ReadonlyArray<{ id: string; label: string }>;
   listAgents: () => ReadonlyArray<{ id: string }>;
   normalizeAgentBackend: (value: unknown) => string;
@@ -108,6 +109,20 @@ test('shows a custom configured model in the agent model menu', () => {
   expect(getAgentMenuModels(agent, 'cloudflare/custom-model')).toEqual([
     ...agent.models,
     { id: 'cloudflare/custom-model', label: 'Custom: cloudflare/custom-model' },
+  ]);
+});
+
+test('shows the models reported by the agent CLI and keeps a retired selection', () => {
+  const agent = getAgent('codex');
+  const reported = [
+    { id: 'codex-default', label: 'Codex default' },
+    { id: 'gpt-6-sol', label: 'GPT-6-Sol' },
+  ];
+
+  expect(getAgentMenuModels(agent, 'gpt-6-sol', reported)).toBe(reported);
+  expect(getAgentMenuModels(agent, 'gpt-5.6-terra', reported)).toEqual([
+    ...reported,
+    { id: 'gpt-5.6-terra', label: 'Custom: gpt-5.6-terra' },
   ]);
 });
 

@@ -11,44 +11,40 @@ import { createCommandTransport, type FakeCommandProcess } from './helpers/comma
 type CommandTransport = ReturnType<typeof createCommandTransport>['transport'];
 
 const require = createRequire(import.meta.url);
-const {
-  CODEX_NOT_FOUND_CODE,
-  DEFAULT_OPENAI_MODEL,
-  getCodexCommand,
-  normalizeOpenAIModel,
-  runCodex,
-} = require('../codex.cjs') as {
-  CODEX_NOT_FOUND_CODE: string;
-  DEFAULT_OPENAI_MODEL: string;
-  getCodexCommand: () => string;
-  normalizeOpenAIModel: (value: unknown) => string;
-  runCodex: (
-    repoRoot: string,
-    prompt: string,
-    schema: unknown,
-    outputName?: string,
-    timeoutMessage?: string,
-    options?: {
-      fallbackModel?: string;
-      commandTransport?: CommandTransport;
-      model?: string;
-      onMetrics?: (metrics: {
-        transport: string;
-        usage?: {
-          cachedInputTokens: number;
-          inputTokens: number;
-          outputTokens: number;
-          reasoningOutputTokens: number;
-          totalTokens: number;
-        };
-      }) => void;
-      onModelFallback?: (fallbackModel: string, originalModel: string) => void;
-      onProgress?: (phase: string) => void;
-      reasoningEffort?: 'low' | 'medium' | 'high';
-      timeoutMs?: number;
-    },
-  ) => Promise<string>;
-};
+const { CODEX_NOT_FOUND_CODE, getCodexCommand, listCodexModels, runCodex } =
+  require('../codex.cjs') as {
+    CODEX_NOT_FOUND_CODE: string;
+    getCodexCommand: () => string;
+    listCodexModels: () => Promise<
+      ReadonlyArray<{ description?: string; id: string; label: string }>
+    >;
+    runCodex: (
+      repoRoot: string,
+      prompt: string,
+      schema: unknown,
+      outputName?: string,
+      timeoutMessage?: string,
+      options?: {
+        fallbackModel?: string;
+        commandTransport?: CommandTransport;
+        model?: string;
+        onMetrics?: (metrics: {
+          transport: string;
+          usage?: {
+            cachedInputTokens: number;
+            inputTokens: number;
+            outputTokens: number;
+            reasoningOutputTokens: number;
+            totalTokens: number;
+          };
+        }) => void;
+        onModelFallback?: (fallbackModel: string, originalModel: string) => void;
+        onProgress?: (phase: string) => void;
+        reasoningEffort?: 'low' | 'medium' | 'high';
+        timeoutMs?: number;
+      },
+    ) => Promise<string>;
+  };
 
 const getArgumentValue = (args: ReadonlyArray<string>, name: string) => {
   const index = args.indexOf(name);
@@ -85,14 +81,59 @@ beforeEach(() => {
   };
 });
 
-test('normalizes OpenAI model preferences to known models', () => {
-  expect(normalizeOpenAIModel('gpt-5.6-sol')).toBe('gpt-5.6-sol');
-  expect(normalizeOpenAIModel('gpt-5.6-terra')).toBe('gpt-5.6-terra');
-  expect(normalizeOpenAIModel('gpt-5.6-luna')).toBe('gpt-5.6-luna');
-  expect(normalizeOpenAIModel('gpt-5.5')).toBe('gpt-5.5');
-  expect(normalizeOpenAIModel('gpt-5.4-mini')).toBe(DEFAULT_OPENAI_MODEL);
-  expect(normalizeOpenAIModel('gpt-5.3-codex')).toBe(DEFAULT_OPENAI_MODEL);
-  expect(normalizeOpenAIModel('gpt-4o')).toBe(DEFAULT_OPENAI_MODEL);
+/** Write a fake `codex app-server` that answers `model/list` with `modelList`. */
+const writeFakeCodexAppServer = async (path: string, modelList: unknown) => {
+  await writeFile(
+    path,
+    `#!/usr/bin/env node
+const readline = require('node:readline');
+const send = (message) => process.stdout.write(JSON.stringify(message) + '\\n');
+readline.createInterface({ input: process.stdin }).on('line', (line) => {
+  const message = JSON.parse(line);
+  if (message.method === 'initialize') {
+    send({ id: message.id, result: {} });
+  } else if (message.method === 'model/list') {
+    send({ id: message.id, ...${JSON.stringify(modelList)} });
+  }
+});
+`,
+  );
+  await chmod(path, 0o755);
+};
+
+test('lists the visible models that the installed Codex reports', async () => {
+  await using directory = await createTemporaryDirectory('codiff-codex-models-');
+  const fakeCodexPath = join(directory.path, 'codex');
+  await using _environment = createTemporaryEnvironment({ CODIFF_CODEX_PATH: fakeCodexPath });
+  await writeFakeCodexAppServer(fakeCodexPath, {
+    result: {
+      data: [
+        {
+          description: 'Frontier intelligence.',
+          displayName: 'GPT-6-Astra',
+          hidden: false,
+          model: 'gpt-6-astra',
+        },
+        { displayName: 'Internal', hidden: true, model: 'gpt-6-internal' },
+        { displayName: 'GPT-6-Luna', hidden: false, model: 'gpt-6-luna' },
+      ],
+    },
+  });
+
+  await expect(listCodexModels()).resolves.toEqual([
+    { id: 'codex-default', label: 'Codex default' },
+    { description: 'Frontier intelligence.', id: 'gpt-6-astra', label: 'GPT-6-Astra' },
+    { id: 'gpt-6-luna', label: 'GPT-6-Luna' },
+  ]);
+});
+
+test('rejects the model list when Codex cannot answer model/list', async () => {
+  await using directory = await createTemporaryDirectory('codiff-codex-models-');
+  const fakeCodexPath = join(directory.path, 'codex');
+  await using _environment = createTemporaryEnvironment({ CODIFF_CODEX_PATH: fakeCodexPath });
+  await writeFakeCodexAppServer(fakeCodexPath, { error: { message: 'Method not found' } });
+
+  await expect(listCodexModels()).rejects.toThrow('Method not found');
 });
 
 test('rejects invalid explicit Codex CLI overrides', async () => {
@@ -142,17 +183,17 @@ test('runs Codex walkthroughs as fresh ephemeral repository-scoped calls', async
   expect(calls[0].args).toContain('--cd');
   expect(calls[0].args).toContain('/repo');
   expect(calls[0].args).toContain('model_reasoning_effort="low"');
+  expect(calls[0].args).not.toContain('-m');
   expect(calls[0].args).not.toContain('resume');
 });
 
-test('retries unavailable GPT-5.6 models with model-specific reasoning', async () => {
+test('retries an unavailable model with the Codex default model', async () => {
   const attempts: Array<string> = [];
   const { transport } = createCommandTransport((commandProcess) => {
     commandProcess.stdin.on('finish', () => {
-      const model = getArgumentValue(commandProcess.args, '-m') || '';
-      const effort = getArgumentValue(commandProcess.args, '-c') || '';
-      attempts.push(`${model}|${effort}`);
-      if (model !== 'gpt-5.5') {
+      const model = getArgumentValue(commandProcess.args, '-m');
+      attempts.push(model ?? 'codex default');
+      if (model) {
         commandProcess.stderr(`You do not have access to model ${model}.`);
         commandProcess.close(1);
       } else {
@@ -165,19 +206,15 @@ test('retries unavailable GPT-5.6 models with model-specific reasoning', async (
   await expect(
     runCodex('/repo', 'prompt', {}, 'walkthrough.json', 'Timed out.', {
       commandTransport: transport,
-      model: 'gpt-5.6-sol',
+      model: 'gpt-6-sol',
       onModelFallback: (fallbackModel, originalModel) => {
         fallbacks.push([fallbackModel, originalModel]);
       },
     }),
   ).resolves.toBe('{"version":1}');
 
-  expect(attempts).toEqual([
-    'gpt-5.6-sol|model_reasoning_effort="medium"',
-    'gpt-5.6-terra|model_reasoning_effort="low"',
-    'gpt-5.5|model_reasoning_effort="low"',
-  ]);
-  expect(fallbacks).toEqual([['gpt-5.5', 'gpt-5.6-sol']]);
+  expect(attempts).toEqual(['gpt-6-sol', 'codex default']);
+  expect(fallbacks).toEqual([['codex-default', 'gpt-6-sol']]);
 });
 
 test('streams Codex app-server reasoning and message deltas as semantic progress', async () => {

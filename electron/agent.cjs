@@ -11,6 +11,7 @@ const { readPiSessionContext } = require('./pi-session-context.cjs');
 
 /**
  * @typedef {import('../core/types.ts').WalkthroughContext} WalkthroughContext
+ * @typedef {import('./agent-shared.cjs').AgentModel} AgentModel
  * @typedef {{
  *   fallbackModel?: string;
  *   model?: string;
@@ -36,7 +37,8 @@ const { readPiSessionContext } = require('./pi-session-context.cjs');
  *   cliName: string;
  *   cliPathEnvVar: string;
  *   defaultTimeoutMs: number;
- *   models: ReadonlyArray<{id: string; label: string}>;
+ *   models: ReadonlyArray<AgentModel>;
+ *   listModels?: () => Promise<ReadonlyArray<AgentModel>>;
  *   defaultModel: string;
  *   fallbackModel: string;
  *   modelSettingKey: 'openAIModel' | 'claudeModel' | 'opencodeModel' | 'piModel';
@@ -86,6 +88,7 @@ const createCodexAgent = () => ({
   cliPathEnvVar: 'CODIFF_CODEX_PATH',
   defaultTimeoutMs: codex.CODEX_TIMEOUT_MS,
   models: codex.OPENAI_MODELS,
+  listModels: () => codex.listCodexModels(),
   defaultModel: codex.DEFAULT_OPENAI_MODEL,
   fallbackModel: codex.FALLBACK_OPENAI_MODEL,
   modelSettingKey: 'openAIModel',
@@ -106,6 +109,7 @@ const createClaudeAgent = () => ({
   cliPathEnvVar: 'CODIFF_CLAUDE_PATH',
   defaultTimeoutMs: claude.CLAUDE_TIMEOUT_MS,
   models: claude.CLAUDE_MODELS,
+  listModels: () => claude.listClaudeModels(),
   defaultModel: claude.DEFAULT_CLAUDE_MODEL,
   fallbackModel: claude.FALLBACK_CLAUDE_MODEL,
   modelSettingKey: 'claudeModel',
@@ -182,12 +186,13 @@ const listAgents = () => AGENT_BACKENDS.map((id) => AGENT_FACTORIES[id]());
 /**
  * @param {Agent} agent
  * @param {string} selectedModel
- * @returns {ReadonlyArray<{id: string; label: string}>}
+ * @param {ReadonlyArray<AgentModel>} [models] Models reported by the agent CLI.
+ * @returns {ReadonlyArray<AgentModel>}
  */
-const getAgentMenuModels = (agent, selectedModel) =>
-  agent.models.some((model) => model.id === selectedModel)
-    ? agent.models
-    : [...agent.models, { id: selectedModel, label: `Custom: ${selectedModel}` }];
+const getAgentMenuModels = (agent, selectedModel, models = agent.models) =>
+  models.some((model) => model.id === selectedModel)
+    ? models
+    : [...models, { id: selectedModel, label: `Custom: ${selectedModel}` }];
 
 /**
  * Select the first installed backend without launching a CLI process.

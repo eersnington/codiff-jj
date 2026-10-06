@@ -26,6 +26,111 @@ const cleanText = (value, fallback = '') =>
 const normalizeEnum = (value, allowed, fallback) =>
   allowed.has(/** @type {T} */ (value)) ? /** @type {T} */ (value) : fallback;
 
+// Model ids come from the agent CLI, so accept any id-shaped value (for
+// example `sonnet`, `gpt-6-sol`, or `claude-fable-5-1[1m]`) but never one that
+// starts like a CLI flag.
+const MODEL_ID_PATTERN = /^[a-z0-9][\w.:@/[\]-]*$/i;
+
+/** @param {unknown} value @param {string} fallback @returns {string} */
+const normalizeModelId = (value, fallback) => {
+  const model = typeof value === 'string' ? value.trim() : '';
+  return MODEL_ID_PATTERN.test(model) ? model : fallback;
+};
+
+/**
+ * @typedef {{
+ *   id: string;
+ *   label: string;
+ *   description?: string;
+ * }} AgentModel
+ */
+
+/**
+ * Spawn a JSONL CLI, write `messages` to stdin, and resolve with the first
+ * stdout message that `pick` maps to a value. The process is stopped as soon
+ * as a value is picked, `pick` throws, the process exits, or the timeout ends.
+ *
+ * @template T
+ * @param {{
+ *   args: ReadonlyArray<string>;
+ *   commandTransport: {command: string; spawn: typeof import('node:child_process').spawn};
+ *   cwd: string;
+ *   env: NodeJS.ProcessEnv;
+ *   messages: ReadonlyArray<unknown>;
+ *   pick: (message: any) => T | undefined;
+ *   timeoutMs: number;
+ * }} options
+ * @returns {Promise<T>}
+ */
+const requestJsonLines = ({ args, commandTransport, cwd, env, messages, pick, timeoutMs }) =>
+  new Promise((resolve, reject) => {
+    const child = commandTransport.spawn(commandTransport.command, args, {
+      cwd,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let finished = false;
+    let lineBuffer = '';
+    let stderr = '';
+
+    /** @param {Error | null} error @param {T} [value] */
+    const finish = (error, value) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      clearTimeout(timer);
+      child.kill('SIGTERM');
+      if (error) {
+        reject(error);
+      } else {
+        resolve(/** @type {T} */ (value));
+      }
+    };
+
+    const timer = setTimeout(
+      () => finish(new Error(`${commandTransport.command} did not respond in time.`)),
+      timeoutMs,
+    );
+
+    child.stdout.on('data', (chunk) => {
+      lineBuffer += chunk.toString();
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() ?? '';
+      for (const line of lines) {
+        /** @type {unknown} */
+        let message;
+        try {
+          message = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        try {
+          const value = pick(message);
+          if (value !== undefined) {
+            finish(null, value);
+            return;
+          }
+        } catch (error) {
+          finish(error instanceof Error ? error : new Error(String(error)));
+          return;
+        }
+      }
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.stdin.on('error', () => {});
+    child.on('error', (error) => finish(error));
+    child.on('close', (code) =>
+      finish(new Error(oneLine(stderr, `${commandTransport.command} exited with code ${code}.`))),
+    );
+
+    for (const message of messages) {
+      child.stdin.write(`${JSON.stringify(message)}\n`);
+    }
+  });
+
 /**
  * Walk `text` and return the first balanced JSON object or array, or `null`
  * if none is found.
@@ -227,8 +332,10 @@ module.exports = {
   findExecutableOnPath,
   isExecutableFile,
   normalizeEnum,
+  normalizeModelId,
   normalizeStructuredOutput,
   oneLine,
   parseJSONMessage,
+  requestJsonLines,
   truncate,
 };

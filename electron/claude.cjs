@@ -7,14 +7,17 @@ const { getCommandEnvironment } = require('./login-shell-environment.cjs');
 const {
   findExecutableOnPath,
   isExecutableFile,
-  normalizeEnum,
+  normalizeModelId,
   oneLine,
+  requestJsonLines,
 } = require('./agent-shared.cjs');
 
 // Claude Code can be slower to first token than Codex, so allow a longer budget.
 const CLAUDE_TIMEOUT_MS = 90_000;
-const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-6';
-const FALLBACK_CLAUDE_MODEL = 'claude-haiku-4-5';
+const CLAUDE_MODEL_LIST_TIMEOUT_MS = 15_000;
+// Claude Code resolves these aliases to the newest model in each family.
+const DEFAULT_CLAUDE_MODEL = 'sonnet';
+const FALLBACK_CLAUDE_MODEL = 'haiku';
 const CLAUDE_NOT_FOUND_CODE = 'CLAUDE_NOT_FOUND';
 const CLAUDE_NOT_FOUND_MESSAGE =
   'Claude Code CLI was not found. Install Claude Code and verify `claude --version` works in Terminal. Codiff searches PATH, ~/.local/bin/claude, /opt/homebrew/bin/claude, and /usr/local/bin/claude. If Claude Code is installed somewhere else, launch Codiff with `CODIFF_CLAUDE_PATH=/absolute/path/to/claude codiff -w`.';
@@ -32,27 +35,14 @@ const CLAUDE_NOT_LOGGED_IN_MESSAGE =
  * }} ClaudeOptions
  */
 /**
- * @typedef {{
- *   id: string;
- *   label: string;
- * }} ClaudeModel
+ * Shown until `listClaudeModels` reports the installed CLI's list.
+ * @type {ReadonlyArray<import('./agent-shared.cjs').AgentModel>}
  */
-/** @type {ReadonlyArray<ClaudeModel>} */
 const CLAUDE_MODELS = Object.freeze([
-  {
-    id: 'claude-opus-4-8',
-    label: 'Best: Claude Opus 4.8',
-  },
-  {
-    id: DEFAULT_CLAUDE_MODEL,
-    label: 'Balanced: Claude Sonnet 4.6',
-  },
-  {
-    id: FALLBACK_CLAUDE_MODEL,
-    label: 'Fast: Claude Haiku 4.5',
-  },
+  { id: 'opus', label: 'Opus' },
+  { id: DEFAULT_CLAUDE_MODEL, label: 'Sonnet' },
+  { id: FALLBACK_CLAUDE_MODEL, label: 'Haiku' },
 ]);
-const CLAUDE_MODEL_IDS = new Set(CLAUDE_MODELS.map((model) => model.id));
 
 /** @param {string} [detail] */
 const createClaudeNotFoundError = (detail) =>
@@ -109,8 +99,7 @@ const isClaudeNotLoggedInError = (value) =>
   );
 
 /** @param {unknown} value @returns {string} */
-const normalizeClaudeModel = (value) =>
-  normalizeEnum(value, CLAUDE_MODEL_IDS, DEFAULT_CLAUDE_MODEL);
+const normalizeClaudeModel = (value) => normalizeModelId(value, DEFAULT_CLAUDE_MODEL);
 
 /** @param {string} value */
 const isClaudeModelAvailabilityError = (value) =>
@@ -367,6 +356,52 @@ const runClaude = async (
   }
 };
 
+/**
+ * Read the model list that the installed Claude Code shows in `/model`. The
+ * `initialize` control request answers locally, without a model call.
+ *
+ * @param {{commandTransport?: import('./agent-command.cjs').AgentCommandTransport}} [options]
+ * @returns {Promise<ReadonlyArray<import('./agent-shared.cjs').AgentModel>>}
+ */
+const listClaudeModels = async (options = {}) =>
+  requestJsonLines({
+    args: [
+      '-p',
+      '--input-format',
+      'stream-json',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--no-session-persistence',
+    ],
+    commandTransport: resolveAgentCommandTransport(options.commandTransport, getClaudeCommand),
+    cwd: homedir(),
+    env: await getCommandEnvironment(),
+    messages: [
+      { request: { subtype: 'initialize' }, request_id: 'codiff-models', type: 'control_request' },
+    ],
+    pick: (message) => {
+      if (message?.type !== 'control_response') {
+        return undefined;
+      }
+      if (message.response?.subtype === 'error') {
+        throw new Error(oneLine(message.response.error, 'Claude Code could not list models.'));
+      }
+      const models = message.response?.response?.models;
+      if (!Array.isArray(models)) {
+        throw new Error('Claude Code did not return a model list.');
+      }
+      return models
+        .filter((model) => normalizeModelId(model?.value, '') !== '')
+        .map((model) => ({
+          description: oneLine(model.description) || undefined,
+          id: model.value,
+          label: oneLine(model.displayName, model.value),
+        }));
+    },
+    timeoutMs: CLAUDE_MODEL_LIST_TIMEOUT_MS,
+  });
+
 module.exports = {
   CLAUDE_MODELS,
   CLAUDE_NOT_FOUND_CODE,
@@ -375,6 +410,7 @@ module.exports = {
   FALLBACK_CLAUDE_MODEL,
   getClaudeCommand,
   isClaudeNotFoundError,
+  listClaudeModels,
   normalizeClaudeModel,
   runClaude,
 };

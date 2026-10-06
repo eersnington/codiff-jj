@@ -92,7 +92,6 @@ const {
   getNarrativeWalkthroughCacheKey,
   normalizeNarrativeWalkthrough,
   readNarrativeWalkthrough,
-  resolveNarrativeWalkthroughModel,
 } = require('./narrative-walkthrough.cjs');
 const { readStoredWalkthrough, writeStoredWalkthrough } = require('./walkthrough-store.cjs');
 const { uploadSharedSnapshot } = require('./shared-walkthrough-upload.cjs');
@@ -181,6 +180,34 @@ const refreshInstalledAgentFiles = () => {
 };
 
 const getActiveAgent = () => getAgent(config.settings.agentBackend);
+
+/** @type {Map<string, Promise<unknown>>} */
+const agentModelRequests = new Map();
+/** @type {Map<string, ReadonlyArray<import('./agent.cjs').AgentModel>>} */
+const agentModels = new Map();
+
+/**
+ * Ask the active agent CLI for its model list once per app run, so the Model
+ * menu follows the installed CLI. The bundled list stays when the CLI is
+ * missing, logged out, or too old to answer; the next agent switch retries.
+ */
+const refreshAgentModels = () => {
+  const agent = getActiveAgent();
+  if (!agent.listModels || agentModelRequests.has(agent.id)) {
+    return;
+  }
+
+  agentModelRequests.set(
+    agent.id,
+    agent.listModels().then(
+      (models) => {
+        agentModels.set(agent.id, models);
+        Menu.setApplicationMenu(buildApplicationMenu());
+      },
+      () => agentModelRequests.delete(agent.id),
+    ),
+  );
+};
 
 /** @param {string} repositoryPath @param {ReviewSource} [source] */
 const readRepositoryStateWithConfig = (repositoryPath, source) =>
@@ -396,6 +423,7 @@ const selectAgentBackend = (backend) => {
   }
 
   updateConfig({ settings: { ...config.settings, agentBackend } });
+  refreshAgentModels();
 };
 
 /** @param {import('./agent.cjs').Agent} agent @param {string} model */
@@ -549,10 +577,11 @@ const buildAgentSubmenu = () =>
 const buildModelSubmenu = () => {
   const agent = getActiveAgent();
   const selectedModel = config.settings[agent.modelSettingKey];
-  return getAgentMenuModels(agent, selectedModel).map((model) => ({
+  return getAgentMenuModels(agent, selectedModel, agentModels.get(agent.id)).map((model) => ({
     checked: selectedModel === model.id,
     click: () => selectAgentModel(agent, model.id),
     label: model.label,
+    sublabel: model.description,
     type: 'radio',
   }));
 };
@@ -1342,6 +1371,7 @@ if (squirrelStartup || !lock) {
       window.once('ready-to-show', () => {
         setImmediate(() => {
           refreshInstalledAgentFiles();
+          refreshAgentModels();
           watchKeyboardLayout((layout) => {
             for (const openWindow of BrowserWindow.getAllWindows()) {
               if (!openWindow.isDestroyed()) {
@@ -1388,6 +1418,7 @@ if (squirrelStartup || !lock) {
       };
       updater?.setUpdatesEnabled(config.settings.checkForUpdates);
       refreshInstalledAgentFiles();
+      refreshAgentModels();
       nativeTheme.themeSource = config.settings.theme;
       sendConfigChanged();
       Menu.setApplicationMenu(buildApplicationMenu());
@@ -1665,7 +1696,7 @@ ipcMain.handle('codiff:getNarrativeWalkthrough', async (event, source, options) 
       await agent.readSessionContext(launchOptions?.[agent.sessionLaunchOptionKey]),
     );
     const agentOptions = getAgentOptions(agent);
-    const walkthroughModel = resolveNarrativeWalkthroughModel(state, agent, agentOptions.model);
+    const walkthroughModel = agent.normalizeModel(agentOptions.model);
     const walkthroughPrompt = config.settings.walkthroughPrompt;
     const cacheKey = getNarrativeWalkthroughCacheKey(
       state,

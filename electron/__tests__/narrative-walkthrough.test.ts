@@ -9,7 +9,6 @@ const {
   narrativeWalkthroughSchema,
   normalizeNarrativeWalkthrough,
   readNarrativeWalkthrough,
-  resolveNarrativeWalkthroughModel,
 } = require('../narrative-walkthrough.cjs') as {
   buildNarrativeWalkthroughPrompt: (
     state: any,
@@ -48,7 +47,6 @@ const {
     customPrompt?: string,
     previousWalkthrough?: unknown,
   ) => Promise<any>;
-  resolveNarrativeWalkthroughModel: (state: any, agent: any, model: unknown) => string;
 };
 
 const addedPatch = (count: number) =>
@@ -384,54 +382,6 @@ test('prompts small walkthroughs to group similar hunks into compact chapters', 
   expect(prompt).toContain('Use 1 story chapter');
   expect(prompt).toContain('For one- or two-file diffs, prefer one chapter');
   expect(prompt).toContain('Similar same-file hunks should usually be one stop');
-});
-
-test('uses GPT-5.5 for large walkthroughs only when Codex is on the default model', () => {
-  const createState = (hunkCount: number) => ({
-    files: [
-      {
-        path: 'large.ts',
-        sections: [
-          {
-            id: 'large.ts:staged',
-            kind: 'staged',
-            patch: Array.from(
-              { length: hunkCount },
-              (_, index) => `@@ -${index + 1} +${index + 1} @@\n-old ${index}\n+new ${index}\n`,
-            ).join(''),
-          },
-        ],
-        status: 'modified',
-      },
-    ],
-    generatedAt: 1,
-    repository: { branch: 'main', vcs: 'git' },
-    root: '/repo',
-    source: { type: 'working-tree' },
-  });
-  const codexAgent = {
-    defaultModel: 'gpt-5.6-terra',
-    fallbackModel: 'gpt-5.5',
-    id: 'codex',
-    normalizeModel: (model: unknown) => String(model),
-  };
-
-  expect(resolveNarrativeWalkthroughModel(createState(99), codexAgent, 'gpt-5.6-terra')).toBe(
-    'gpt-5.6-terra',
-  );
-  expect(resolveNarrativeWalkthroughModel(createState(100), codexAgent, 'gpt-5.6-terra')).toBe(
-    'gpt-5.5',
-  );
-  expect(resolveNarrativeWalkthroughModel(createState(100), codexAgent, 'gpt-5.6-sol')).toBe(
-    'gpt-5.6-sol',
-  );
-  expect(
-    resolveNarrativeWalkthroughModel(
-      createState(100),
-      { ...codexAgent, id: 'claude' },
-      'claude-sonnet',
-    ),
-  ).toBe('claude-sonnet');
 });
 
 test('prompts generated walkthroughs with custom user guidance without replacing core constraints', () => {

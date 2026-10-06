@@ -11,31 +11,27 @@ import { createCommandTransport } from './helpers/command-transport.ts';
 type CommandTransport = ReturnType<typeof createCommandTransport>['transport'];
 
 const require = createRequire(import.meta.url);
-const {
-  CLAUDE_NOT_FOUND_CODE,
-  DEFAULT_CLAUDE_MODEL,
-  getClaudeCommand,
-  normalizeClaudeModel,
-  runClaude,
-} = require('../claude.cjs') as {
-  CLAUDE_NOT_FOUND_CODE: string;
-  DEFAULT_CLAUDE_MODEL: string;
-  getClaudeCommand: () => string;
-  normalizeClaudeModel: (value: unknown) => string;
-  runClaude: (
-    repoRoot: string,
-    prompt: string,
-    schema: unknown,
-    outputName?: string,
-    timeoutMessage?: string,
-    options?: {
-      commandTransport?: CommandTransport;
-      model?: string;
-      onProgress?: (phase: string) => void;
-      timeoutMs?: number;
-    },
-  ) => Promise<string>;
-};
+const { CLAUDE_NOT_FOUND_CODE, getClaudeCommand, listClaudeModels, runClaude } =
+  require('../claude.cjs') as {
+    CLAUDE_NOT_FOUND_CODE: string;
+    getClaudeCommand: () => string;
+    listClaudeModels: () => Promise<
+      ReadonlyArray<{ description?: string; id: string; label: string }>
+    >;
+    runClaude: (
+      repoRoot: string,
+      prompt: string,
+      schema: unknown,
+      outputName?: string,
+      timeoutMessage?: string,
+      options?: {
+        commandTransport?: CommandTransport;
+        model?: string;
+        onProgress?: (phase: string) => void;
+        timeoutMs?: number;
+      },
+    ) => Promise<string>;
+  };
 
 // Spawning Claude resolves the login shell environment, so tests either
 // provide their own fake shell or run without one.
@@ -51,9 +47,85 @@ beforeEach(() => {
   };
 });
 
-test('normalizes Claude Code model preferences to known models', () => {
-  expect(normalizeClaudeModel('claude-opus-4-8')).toBe('claude-opus-4-8');
-  expect(normalizeClaudeModel('gpt-4o')).toBe(DEFAULT_CLAUDE_MODEL);
+test('lists the models that the installed Claude Code reports', async () => {
+  await using directory = await createTemporaryDirectory('codiff-claude-models-');
+  const fakeClaudePath = join(directory.path, 'claude');
+  await using _environment = createTemporaryEnvironment({ CODIFF_CLAUDE_PATH: fakeClaudePath });
+  const models = [
+    {
+      description: 'Use the default model',
+      displayName: 'Default (recommended)',
+      value: 'default',
+    },
+    { description: 'Sonnet 5.5 · Efficient', displayName: 'Sonnet', value: 'sonnet' },
+    { displayName: 'Fable', value: 'claude-fable-5-1[1m]' },
+  ];
+  await writeFile(
+    fakeClaudePath,
+    `#!/usr/bin/env node
+const readline = require('node:readline');
+readline.createInterface({ input: process.stdin }).on('line', (line) => {
+  const message = JSON.parse(line);
+  process.stdout.write(JSON.stringify({
+    response: {
+      request_id: message.request_id,
+      response: { models: ${JSON.stringify(models)} },
+      subtype: 'success',
+    },
+    type: 'control_response',
+  }) + '\\n');
+});
+`,
+  );
+  await chmod(fakeClaudePath, 0o755);
+
+  await expect(listClaudeModels()).resolves.toEqual([
+    { description: 'Use the default model', id: 'default', label: 'Default (recommended)' },
+    { description: 'Sonnet 5.5 · Efficient', id: 'sonnet', label: 'Sonnet' },
+    { id: 'claude-fable-5-1[1m]', label: 'Fable' },
+  ]);
+});
+
+test('rejects the model list when Claude Code exits without answering', async () => {
+  await using directory = await createTemporaryDirectory('codiff-claude-models-');
+  const fakeClaudePath = join(directory.path, 'claude');
+  await using _environment = createTemporaryEnvironment({ CODIFF_CLAUDE_PATH: fakeClaudePath });
+  await writeFile(
+    fakeClaudePath,
+    `#!/usr/bin/env node
+process.stderr.write('Not logged in · Please run /login');
+process.exit(1);
+`,
+  );
+  await chmod(fakeClaudePath, 0o755);
+
+  await expect(listClaudeModels()).rejects.toThrow('Not logged in');
+});
+
+test('never passes a flag-shaped model to Claude Code', async () => {
+  await using directory = await createTemporaryDirectory('codiff-claude-');
+  const fakeClaudePath = join(directory.path, 'claude');
+  const argsPath = join(directory.path, 'args.txt');
+  await using _environment = createTemporaryEnvironment({ CODIFF_CLAUDE_PATH: fakeClaudePath });
+  await writeFile(
+    fakeClaudePath,
+    `#!/usr/bin/env node
+require('node:fs').writeFileSync(${JSON.stringify(argsPath)}, process.argv.slice(2).join('\\n'));
+process.stdin.resume();
+process.stdin.on('end', () => {
+  process.stdout.write('{"is_error":false,"structured_output":{"version":1}}');
+});
+`,
+  );
+  await chmod(fakeClaudePath, 0o755);
+
+  await runClaude(directory.path, 'prompt', { type: 'object' }, 'walkthrough.json', 'Timed out.', {
+    model: '--dangerously-skip-permissions',
+  });
+
+  const args = (await readFile(argsPath, 'utf8')).split('\n');
+  expect(args).not.toContain('--dangerously-skip-permissions');
+  expect(args[args.indexOf('--model') + 1]).toBe('sonnet');
 });
 
 test('rejects invalid explicit Claude CLI overrides', async () => {

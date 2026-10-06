@@ -132,14 +132,14 @@ counts; when it is `false`, Codiff hides those changes from the working-tree rev
   "$schema": "https://raw.githubusercontent.com/eersnington/codiff-jj/main/core/config/codiff-config.schema.json",
   "settings": {
     "agentBackend": "codex",
-    "claudeModel": "claude-sonnet-4-6",
+    "claudeModel": "sonnet",
     "codeFontFamily": "",
     "codeFontSize": 13,
     "copyCommentsOnClose": false,
     "diffStyle": "split",
     "editorCommand": "",
     "lastRepositoryPath": "",
-    "openAIModel": "gpt-5.6-terra",
+    "openAIModel": "codex-default",
     "opencodeModel": "opencode-default",
     "sidebarPosition": "left",
     "showWhitespace": false,
@@ -197,11 +197,16 @@ application menu:
   `settings.opencodeModel`.
 - `pi` — the Pi CLI, using its configured default model.
 
-Codex walkthroughs default to GPT-5.6 Terra with low reasoning. The Model menu also offers Sol
-with medium reasoning for deeper analysis and Luna with medium reasoning for faster work. If a
-selected GPT-5.6 model is unavailable, Codiff retries with Terra when applicable and then GPT-5.5,
-persisting the first model that succeeds. Walkthroughs with at least 100 reviewable hunks use
-GPT-5.5 with low reasoning when Terra is the configured default.
+The Model menu lists the models that the installed Codex or Claude Code CLI reports, so new
+models appear when you update the CLI. Codiff reads the list in the background after launch and
+keeps a short built-in list when the CLI cannot answer.
+
+- Codex defaults to `codex-default`, which uses Codex's own default model (or the `model` in
+  `~/.codex/config.toml`) with low reasoning.
+- Claude Code defaults to the `sonnet` alias, which Claude Code resolves to the newest Sonnet model.
+
+If the selected model is unavailable, Codiff retries with the default for that CLI and saves the
+model that succeeds.
 
 Install the backend you want and verify it is available before using `codiff -w`:
 
